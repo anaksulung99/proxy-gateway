@@ -1,0 +1,65 @@
+# ============================================================
+# Git Ignore — Proxy System Monorepo
+# ============================================================
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+infra/traefik/acme.json
+
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.output/
+
+# AdonisJS
+apps/web/tmp/
+apps/web/.env
+
+# Go build artifacts
+apps/*/bin/
+apps/*/*.exe
+apps/*/vendor/
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (jika mounted local)
+.docker-data/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Test coverage
+coverage/
+*.cover
+
+# Playwright
+test-results/
+playwright-report/
+
+# Grafana
+infra/grafana/data/
+
+# Temp
+tmp/
+temp/
+.cache/
+docs/*
+.claude/*
+.trae/*

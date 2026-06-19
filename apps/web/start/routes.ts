@@ -1,0 +1,91 @@
+/*
+|--------------------------------------------------------------------------
+| Routes file
+|--------------------------------------------------------------------------
+|
+| The routes file is used for defining the HTTP routes.
+|
+*/
+
+import { middleware } from '#start/kernel'
+import { controllers } from '#generated/controllers'
+import router from '@adonisjs/core/services/router'
+
+router.on('/').renderInertia('home', {}).as('home')
+
+router
+  .group(() => {
+    router.get('signup', [controllers.NewAccount, 'create'])
+    router.post('signup', [controllers.NewAccount, 'store'])
+
+    router.get('login', [controllers.Session, 'create'])
+    router.post('login', [controllers.Session, 'store'])
+
+    router.get('forgot-password', [controllers.Auth, 'forgotPassword']).as('password.forgot')
+    router.post('forgot-password', [controllers.Auth, 'sendResetLink']).as('password.email')
+    router.get('reset-password/:token', [controllers.Auth, 'resetPassword']).as('password.reset')
+    router.post('reset-password', [controllers.Auth, 'updatePassword']).as('password.update')
+  })
+  .use(middleware.guest())
+
+router
+  .group(() => {
+    router.post('logout', [controllers.Session, 'destroy'])
+    router.get('verify-email', [controllers.Auth, 'verificationNotice']).as('email.notice')
+    router.post('verify-email/resend', [controllers.Auth, 'resendVerification']).as('email.resend')
+  })
+  .use(middleware.auth())
+
+router.get('verify-email/:token', [controllers.Auth, 'verifyEmail']).as('email.verify')
+
+/*
+| Authenticated app (team-scoped)
+*/
+router
+  .group(() => {
+    router.get('', [controllers.Dashboard, 'index']).as('dashboard')
+
+    // Proxy lists
+    router.get('proxy-lists', [controllers.ProxyLists, 'index']).as('proxy-lists.index')
+    router.post('proxy-lists', [controllers.ProxyLists, 'store']).as('proxy-lists.store')
+    router.get('proxy-lists/:id', [controllers.ProxyLists, 'show']).as('proxy-lists.show')
+    router.patch('proxy-lists/:id', [controllers.ProxyLists, 'update']).as('proxy-lists.update')
+    router.post('proxy-lists/:id/update', [controllers.ProxyLists, 'update']).as('proxy-lists.updatePost')
+    router.delete('proxy-lists/:id', [controllers.ProxyLists, 'destroy']).as('proxy-lists.destroy')
+    router
+      .put('proxy-lists/:id/rotation', [controllers.ProxyLists, 'updateRotation'])
+      .as('proxy-lists.rotation')
+    router
+      .post('proxy-lists/:id/rotation', [controllers.ProxyLists, 'updateRotation'])
+      .as('proxy-lists.rotationPost')
+    router
+      .post('proxy-lists/:id/import', [controllers.ProxyLists, 'import'])
+      .as('proxy-lists.import')
+    router
+      .get('proxy-lists/:id/export', [controllers.ProxyEntries, 'export'])
+      .as('proxy-lists.export')
+
+    // Proxy entries (bulk actions)
+    router.post('proxy-entries/bulk', [controllers.ProxyEntries, 'bulk']).as('proxy-entries.bulk')
+
+    // Gateway usage analytics
+    router.get('analytics', [controllers.ProxyUsageAnalytics, 'index']).as('analytics.index')
+    router.get('analytics/export', [controllers.ProxyUsageAnalytics, 'export']).as('analytics.export')
+
+    // Tools — external health checker
+    router.get('tools', [controllers.ToolsChecker, 'index']).as('tools.index')
+    router.get('tools/logs', [controllers.ToolsChecker, 'logs']).as('tools.logs')
+    router.post('tools/check', [controllers.ToolsChecker, 'check']).as('tools.check')
+
+    // Scraper — proxy sources
+    router.get('scraper', [controllers.ScraperSources, 'index']).as('scraper.index')
+    router.get('scraper/logs', [controllers.ScraperSources, 'logs']).as('scraper.logs')
+    router.patch('scraper/:id', [controllers.ScraperSources, 'update']).as('scraper.update')
+    router.post('scraper/:id/update', [controllers.ScraperSources, 'update']).as('scraper.updatePost')
+    router.post('scraper/:id/run', [controllers.ScraperSources, 'run']).as('scraper.run')
+    router
+      .post('scraper/run-enabled', [controllers.ScraperSources, 'runEnabled'])
+      .as('scraper.runEnabled')
+  })
+  .prefix('app')
+  .use([middleware.auth(), middleware.verified(), middleware.team()])

@@ -1,0 +1,40 @@
+import './css/app.css'
+import 'vue-sonner/style.css'
+import { client } from '~/client'
+import { createPinia } from 'pinia'
+import Layout from '~/layouts/default.vue'
+import { createInertiaApp } from '@inertiajs/vue3'
+import { TuyauProvider } from '@adonisjs/inertia/vue'
+import { createApp, type DefineComponent, h } from 'vue'
+import { resolvePageComponent } from '@adonisjs/inertia/helpers'
+import Vue3Toastify, { type ToastContainerOptions } from 'vue3-toastify'
+import 'vue3-toastify/dist/index.css'
+
+const appName = import.meta.env.VITE_APP_NAME || 'AdonisJS'
+
+createInertiaApp({
+  title: (title) => (title ? `${title} - ${appName}` : appName),
+  resolve: (name) => {
+    return resolvePageComponent(
+      `./pages/${name}.vue`,
+      import.meta.glob<DefineComponent>('./pages/**/*.vue'),
+      Layout
+    )
+  },
+  setup({ el, App, props, plugin }) {
+    const pinia = createPinia()
+    createApp({ render: () => h(TuyauProvider, { client }, { default: () => h(App, props) }) })
+      .use(plugin)
+      .use(pinia)
+      .use(Vue3Toastify, {
+        autoClose: 3000,
+        theme: 'dark',
+        transition: 'flip',
+        position: 'top-right',
+      } as ToastContainerOptions)
+      .mount(el)
+  },
+  progress: {
+    color: '#4B5563',
+  },
+})

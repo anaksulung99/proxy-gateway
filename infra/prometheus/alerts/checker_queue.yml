@@ -1,0 +1,11 @@
+groups:
+- name: checker_queue
+  rules:
+  - alert: HealthCheckerQueueDepth
+    expr: rabbitmq_queue_messages{queue="healthcheck.jobs"} > 500
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: 'Health checker queue backlog'
+      description: '{{ $value }} jobs pending in healthcheck queue. Consider scaling workers.'

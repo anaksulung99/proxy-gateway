@@ -1,0 +1,20 @@
+groups:
+- name: proxy_pool
+  rules:
+  - alert: ProxyPoolTooSmall
+    expr: proxy_pool_healthy_total < 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: 'Proxy pool running low'
+      description: 'Only {{ $value }} healthy proxies remaining. Consider triggering scraper.'
+
+  - alert: ProxyPoolEmpty
+    expr: proxy_pool_healthy_total == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: 'Proxy pool is empty!'
+      description: 'No healthy proxies available. All traffic will fail.'

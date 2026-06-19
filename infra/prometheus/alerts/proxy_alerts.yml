@@ -1,0 +1,98 @@
+# ============================================================
+# Alert Rules — Proxy System
+# ============================================================
+
+groups:
+
+# ── Proxy Pool Alerts
+- name: proxy_pool
+  rules:
+  - alert: ProxyPoolCriticallyLow
+    expr: proxy_pool_healthy_total < 10
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Proxy pool sangat sedikit"
+      description: "Hanya {{ $value }} proxy healthy tersisa. Segera import atau jalankan scraper."
+
+  - alert: ProxyPoolLow
+    expr: proxy_pool_healthy_total < 50
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Proxy pool mulai menipis"
+      description: "{{ $value }} proxy healthy. Pertimbangkan untuk scrape ulang."
+
+  - alert: ProxyEngineHighErrorRate
+    expr: rate(proxy_requests_failed_total[5m]) / rate(proxy_requests_total[5m]) > 0.2
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Error rate proxy engine tinggi"
+      description: "Error rate {{ $value | humanizePercentage }} dalam 5 menit terakhir."
+
+# ── Scraper Alerts
+- name: scraper
+  rules:
+  - alert: ScraperConsecutiveFailures
+    expr: scraper_consecutive_failures > 3
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Scraper gagal berulang kali"
+      description: "Scraper {{ $labels.source }} gagal {{ $value }} kali berturut-turut."
+
+  - alert: ScraperNotRunning
+    expr: time() - scraper_last_success_timestamp > 21600 # 6 jam
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Scraper tidak berjalan"
+      description: "Scraper {{ $labels.source }} tidak berhasil dalam 6 jam terakhir."
+
+# ── Health Checker Alerts
+- name: health_checker
+  rules:
+  - alert: HealthCheckQueueBacklog
+    expr: rabbitmq_queue_messages{queue="healthcheck.jobs"} > 500
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Health check queue menumpuk"
+      description: "Queue healthcheck.jobs punya {{ $value }} pesan pending."
+
+  - alert: HealthCheckDLQGrowing
+    expr: rabbitmq_queue_messages{queue="healthcheck.jobs.dlq"} > 50
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Dead letter queue health checker bertumbuh"
+      description: "{{ $value }} jobs gagal masuk DLQ."
+
+# ── Infrastructure Alerts
+- name: infrastructure
+  rules:
+  - alert: ServiceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Service {{ $labels.job }} down"
+      description: "Service {{ $labels.job }} tidak bisa di-scrape oleh Prometheus."
+
+  - alert: HighMemoryUsage
+    expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.85
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Memory usage tinggi"
+      description: "Container {{ $labels.name }} menggunakan {{ $value | humanizePercentage }} memory."

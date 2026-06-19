@@ -1,0 +1,59 @@
+# ============================================================
+# Prometheus — Scrape Configuration
+# ============================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'proxy-system'
+
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets: [] # add alertmanager if needed
+
+rule_files:
+- '/etc/prometheus/alerts/*.yml'
+
+scrape_configs:
+- job_name: 'prometheus'
+  static_configs:
+  - targets: [ 'localhost:9090' ]
+
+- job_name: 'traefik'
+  static_configs:
+  - targets: [ 'traefik:8080' ]
+
+- job_name: 'adonis-web'
+  static_configs:
+  - targets: [ 'web:9100' ]
+  metrics_path: '/metrics'
+
+- job_name: 'proxy-engine'
+  static_configs:
+  - targets: [ 'proxy-engine:9200' ]
+  metrics_path: '/metrics'
+
+- job_name: 'scraper'
+  static_configs:
+  - targets: [ 'scraper:9300' ]
+  metrics_path: '/metrics'
+
+- job_name: 'health-checker'
+  static_configs:
+  - targets: [ 'health-checker:9400' ]
+  metrics_path: '/metrics'
+
+- job_name: 'postgres'
+  static_configs:
+  - targets: [ 'postgres-exporter:9187' ]
+
+- job_name: 'redis'
+  static_configs:
+  - targets: [ 'redis-exporter:9121' ]
+
+- job_name: 'rabbitmq'
+  static_configs:
+  - targets: [ 'rabbitmq:15692' ]
+  metrics_path: '/metrics'

@@ -1,0 +1,442 @@
+/* eslint-disable prettier/prettier */
+/// <reference path="../manifest.d.ts" />
+
+import type { ExtractBody, ExtractErrorResponse, ExtractQuery, ExtractQueryForGet, ExtractResponse } from '@tuyau/core/types'
+import type { InferInput, SimpleError } from '@vinejs/vine/types'
+
+export type ParamValue = string | number | bigint | boolean
+
+export interface Registry {
+  'home': {
+    methods: ["GET","HEAD"]
+    pattern: '/'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+    }
+  }
+  'new_account.create': {
+    methods: ["GET","HEAD"]
+    pattern: '/signup'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/new_account_controller').default['create']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/new_account_controller').default['create']>>>
+    }
+  }
+  'new_account.store': {
+    methods: ["POST"]
+    pattern: '/signup'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').signupValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').signupValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/new_account_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/new_account_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'session.create': {
+    methods: ["GET","HEAD"]
+    pattern: '/login'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/session_controller').default['create']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/session_controller').default['create']>>>
+    }
+  }
+  'session.store': {
+    methods: ["POST"]
+    pattern: '/login'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').loginValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').loginValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/session_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/session_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'password.forgot': {
+    methods: ["GET","HEAD"]
+    pattern: '/forgot-password'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['forgotPassword']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['forgotPassword']>>>
+    }
+  }
+  'password.email': {
+    methods: ["POST"]
+    pattern: '/forgot-password'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').emailValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').emailValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['sendResetLink']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['sendResetLink']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'password.reset': {
+    methods: ["GET","HEAD"]
+    pattern: '/reset-password/:token'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { token: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['resetPassword']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['resetPassword']>>>
+    }
+  }
+  'password.update': {
+    methods: ["POST"]
+    pattern: '/reset-password'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').resetPasswordValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').resetPasswordValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['updatePassword']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['updatePassword']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'session.destroy': {
+    methods: ["POST"]
+    pattern: '/logout'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/session_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/session_controller').default['destroy']>>>
+    }
+  }
+  'email.notice': {
+    methods: ["GET","HEAD"]
+    pattern: '/verify-email'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['verificationNotice']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['verificationNotice']>>>
+    }
+  }
+  'email.resend': {
+    methods: ["POST"]
+    pattern: '/verify-email/resend'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['resendVerification']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['resendVerification']>>>
+    }
+  }
+  'email.verify': {
+    methods: ["GET","HEAD"]
+    pattern: '/verify-email/:token'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { token: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['verifyEmail']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/auth_controller').default['verifyEmail']>>>
+    }
+  }
+  'dashboard': {
+    methods: ["GET","HEAD"]
+    pattern: '/app'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['index']>>>
+    }
+  }
+  'proxy-lists.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/proxy-lists'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['index']>>>
+    }
+  }
+  'proxy-lists.store': {
+    methods: ["POST"]
+    pattern: '/app/proxy-lists'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_list').createProxyListValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_list').createProxyListValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/proxy-lists/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['show']>>>
+    }
+  }
+  'proxy-lists.update': {
+    methods: ["PATCH"]
+    pattern: '/app/proxy-lists/:id'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_list').updateProxyListValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_list').updateProxyListValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.updatePost': {
+    methods: ["POST"]
+    pattern: '/app/proxy-lists/:id/update'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_list').updateProxyListValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_list').updateProxyListValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.destroy': {
+    methods: ["DELETE"]
+    pattern: '/app/proxy-lists/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['destroy']>>>
+    }
+  }
+  'proxy-lists.rotation': {
+    methods: ["PUT"]
+    pattern: '/app/proxy-lists/:id/rotation'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/rotation_config').rotationConfigValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/rotation_config').rotationConfigValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['updateRotation']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['updateRotation']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.rotationPost': {
+    methods: ["POST"]
+    pattern: '/app/proxy-lists/:id/rotation'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/rotation_config').rotationConfigValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/rotation_config').rotationConfigValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['updateRotation']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['updateRotation']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.import': {
+    methods: ["POST"]
+    pattern: '/app/proxy-lists/:id/import'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_import').proxyImportValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_import').proxyImportValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['import']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['import']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-lists.export': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/proxy-lists/:id/export'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['export']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['export']>>>
+    }
+  }
+  'proxy-entries.bulk': {
+    methods: ["POST"]
+    pattern: '/app/proxy-entries/bulk'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_entry').bulkActionValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_entry').bulkActionValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['bulk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['bulk']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'analytics.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/analytics'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['index']>>>
+    }
+  }
+  'analytics.export': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/analytics/export'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['export']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['export']>>>
+    }
+  }
+  'tools.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/tools'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['index']>>>
+    }
+  }
+  'tools.logs': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/tools/logs'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['logs']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['logs']>>>
+    }
+  }
+  'tools.check': {
+    methods: ["POST"]
+    pattern: '/app/tools/check'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/tools_check').toolsCheckValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/tools_check').toolsCheckValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['check']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['check']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'scraper.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/scraper'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['index']>>>
+    }
+  }
+  'scraper.logs': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/scraper/logs'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['logs']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['logs']>>>
+    }
+  }
+  'scraper.update': {
+    methods: ["PATCH"]
+    pattern: '/app/scraper/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['update']>>>
+    }
+  }
+  'scraper.updatePost': {
+    methods: ["POST"]
+    pattern: '/app/scraper/:id/update'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['update']>>>
+    }
+  }
+  'scraper.run': {
+    methods: ["POST"]
+    pattern: '/app/scraper/:id/run'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['run']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['run']>>>
+    }
+  }
+  'scraper.runEnabled': {
+    methods: ["POST"]
+    pattern: '/app/scraper/run-enabled'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['runEnabled']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['runEnabled']>>>
+    }
+  }
+}

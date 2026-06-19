@@ -1,0 +1,312 @@
+# ============================================================
+# Proxy System — Docker Compose (Base)
+# Usage:
+#   Dev:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================================
+
+version: '3.9'
+
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+networks:
+  proxy-internal:
+    driver: bridge
+    internal: true # Go services & DB tidak expose ke host
+  public-net:
+    driver: bridge # Hanya Traefik yang di network ini
+
+volumes:
+  pg-data:
+  redis-data:
+  rabbitmq-data:
+  grafana-data:
+  loki-data:
+  prometheus-data:
+  traefik-acme:
+
+services:
+  # ──────────────────────────────────────────
+  # LAYER 1: API Gateway
+  # ──────────────────────────────────────────
+  traefik:
+    image: traefik:v3.0
+    <<: [*restart-policy, *default-logging]
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-acme:/etc/traefik/acme
+    networks:
+      - public-net
+      - proxy-internal
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.dashboard.rule=Host(`traefik.${TRAEFIK_DOMAIN}`)'
+      - 'traefik.http.routers.dashboard.service=api@internal'
+      - 'traefik.http.routers.dashboard.middlewares=auth@file'
+      - 'traefik.http.routers.dashboard.tls.certresolver=letsencrypt'
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ──────────────────────────────────────────
+  # LAYER 2: AdonisJS App (Admin Panel + API)
+  # ──────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    <<: [*restart-policy, *default-logging]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - proxy-internal
+      - public-net
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.web.rule=Host(`${TRAEFIK_DOMAIN}`)'
+      - 'traefik.http.routers.web.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.web.loadbalancer.server.port=3333'
+      - 'traefik.http.routers.web.middlewares=secure-headers@file'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3333/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ──────────────────────────────────────────
+  # LAYER 3: Go Services
+  # ──────────────────────────────────────────
+  proxy-engine:
+    build:
+      context: apps/proxy-engine
+      dockerfile: ../../infra/docker/proxy-engine.Dockerfile
+    <<: [*restart-policy, *default-logging]
+    env_file: .env
+    environment:
+      - PORT=${PROXY_ENGINE_PORT:-8001}
+      - WORKERS=${PROXY_ENGINE_WORKERS:-50}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy-internal
+      - public-net
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.proxy-engine.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/proxy`)'
+      - 'traefik.http.routers.proxy-engine.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.proxy-engine.loadbalancer.server.port=8001'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8001/health']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  scraper:
+    build:
+      context: apps/scraper
+      dockerfile: ../../infra/docker/scraper.Dockerfile
+    <<: [*restart-policy, *default-logging]
+    env_file: .env
+    environment:
+      - PORT=${SCRAPER_PORT:-8002}
+      - WORKERS=${SCRAPER_WORKERS:-20}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8002/health']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  health-checker:
+    build:
+      context: apps/health-checker
+      dockerfile: ../../infra/docker/checker.Dockerfile
+    <<: [*restart-policy, *default-logging]
+    env_file: .env
+    environment:
+      - PORT=${CHECKER_PORT:-8003}
+      - WORKERS=${CHECKER_WORKERS:-100}
+      - BROWSER_POOL_SIZE=${CHECKER_BROWSER_POOL_SIZE:-5}
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8003/health']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  # ──────────────────────────────────────────
+  # LAYER 4: Infrastructure
+  # ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    <<: [*restart-policy, *default-logging]
+    environment:
+      POSTGRES_USER: ${DB_USER:-proxysystem}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_DATABASE:-proxysystem}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-proxysystem} -d ${DB_DATABASE:-proxysystem}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    <<: [*restart-policy, *default-logging]
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-changeme}
+      --save 60 1
+      --loglevel warning
+    volumes:
+      - redis-data:/data
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-changeme}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    <<: [*restart-policy, *default-logging]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-proxysystem}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-changeme}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-proxysystem}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────────
+  # LAYER 5: Monitoring
+  # ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    <<: [*restart-policy, *default-logging]
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:9090/-/healthy']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    <<: [*restart-policy, *default-logging]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: 'https://grafana.${TRAEFIK_DOMAIN}'
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - proxy-internal
+      - public-net
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.grafana.rule=Host(`grafana.${TRAEFIK_DOMAIN}`)'
+      - 'traefik.http.routers.grafana.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.grafana.loadbalancer.server.port=3000'
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.0
+    <<: [*restart-policy, *default-logging]
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    networks:
+      - proxy-internal
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3100/ready']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    <<: [*restart-policy, *default-logging]
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./infra/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - proxy-internal
+    depends_on:
+      - loki

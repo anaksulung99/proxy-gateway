@@ -1,0 +1,11 @@
+groups:
+- name: scraper
+  rules:
+  - alert: ScraperConsecutiveFailures
+    expr: increase(scraper_failed_total[30m]) > 3
+    for: 0m
+    labels:
+      severity: warning
+    annotations:
+      summary: 'Scraper failing repeatedly'
+      description: 'Scraper {{ $labels.source }} failed {{ $value }} times in 30 minutes.'

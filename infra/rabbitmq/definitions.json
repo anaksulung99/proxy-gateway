@@ -1,0 +1,100 @@
+{
+  "vhosts": [{ "name": "proxysystem" }],
+  "exchanges": [
+    {
+      "name": "proxy.dead-letter",
+      "vhost": "proxysystem",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false
+    }
+  ],
+  "queues": [
+    {
+      "name": "scraper.jobs",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "proxy.dead-letter",
+        "x-dead-letter-routing-key": "scraper.dead",
+        "x-message-ttl": 3600000
+      }
+    },
+    {
+      "name": "healthcheck.jobs",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "proxy.dead-letter",
+        "x-dead-letter-routing-key": "healthcheck.dead",
+        "x-message-ttl": 1800000
+      }
+    },
+    {
+      "name": "import.batch",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "proxy.dead-letter",
+        "x-dead-letter-routing-key": "import.dead",
+        "x-message-ttl": 600000
+      }
+    },
+    {
+      "name": "scraper.dead",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "healthcheck.dead",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "import.dead",
+      "vhost": "proxysystem",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "proxy.dead-letter",
+      "vhost": "proxysystem",
+      "destination": "scraper.dead",
+      "destination_type": "queue",
+      "routing_key": "scraper.dead"
+    },
+    {
+      "source": "proxy.dead-letter",
+      "vhost": "proxysystem",
+      "destination": "healthcheck.dead",
+      "destination_type": "queue",
+      "routing_key": "healthcheck.dead"
+    },
+    {
+      "source": "proxy.dead-letter",
+      "vhost": "proxysystem",
+      "destination": "import.dead",
+      "destination_type": "queue",
+      "routing_key": "import.dead"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "proxysystem",
+      "vhost": "proxysystem",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ]
+}
