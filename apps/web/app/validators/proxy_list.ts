@@ -11,3 +11,7 @@ export const updateProxyListValidator = vine.create({
   description: vine.string().trim().maxLength(500).nullable().optional(),
   isActive: vine.boolean().optional(),
 })
+
+export const deleteProxyListValidator = vine.create({
+  ids: vine.array(vine.number().positive()).minLength(1),
+})

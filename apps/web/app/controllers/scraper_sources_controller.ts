@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import ScraperSource from '#models/scraper_source'
 import ScraperRun from '#models/scraper_run'
 import ProxyList from '#models/proxy_list'
@@ -6,6 +7,7 @@ import scraperPipeline from '#services/scraper_pipeline_service'
 import type { CheckMode } from '#services/health_check_client_service'
 import vine from '@vinejs/vine'
 import type { HttpContext } from '@adonisjs/core/http'
+import { deleteRunsValidator } from '#validators/scraper_run'
 
 const updateSourceValidator = vine.create({
   proxyListId: vine.number().positive().nullable().optional(),
@@ -22,7 +24,12 @@ export default class ScraperSourcesController {
    * GET /app/scraper — provision the known sources for the team (idempotent)
    * and list them with their target list.
    */
-  async index({ inertia, team }: HttpContext) {
+  async index({ inertia, request, team }: HttpContext) {
+    const requestedPage = Number(request.input('page', 1))
+    const requestedPerPage = Number(request.input('perPage', 10))
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+
     await scraperPipeline.provisionSources(team.id)
 
     const availableSources = new Set(await scraperClient.listSources())
@@ -34,29 +41,54 @@ export default class ScraperSourcesController {
       )
       .orderBy('name', 'asc')
 
-    const lists = await ProxyList.query().where('team_id', team.id).orderBy('name', 'asc')
-    const recentRuns = await scraperPipeline.listRecentRuns(team.id, 6)
+    const lists = await ProxyList
+      .query()
+      .where('team_id', team.id)
+      .orderBy('name', 'asc')
 
-    return inertia.render('scraper/index' as never, {
-      sources: sources.map((s) => ({
-        ...s.serialize(),
-        availability: availableSources.has(s.sourceKey) ? 'available' : 'unreachable',
-        cronLabel: scraperPipeline.cronLabel(s.scheduleCron),
-      })),
-      lists: lists.map((l) => ({ id: l.id, name: l.name })),
-      overview: {
-        totalSources: sources.length,
-        enabledSources: sources.filter((source) => source.isEnabled).length,
-        configuredSources: sources.filter((source) => source.proxyListId).length,
-        availableSources: sources.filter((source) => availableSources.has(source.sourceKey)).length,
-      },
-      recentRuns,
-    } as never)
+    const allRecentRuns = await scraperPipeline.listRecentRuns(team.id, 6)
+
+    const total = allRecentRuns.length
+    const start = (page - 1) * perPage
+    const recentRuns = {
+      data: allRecentRuns.slice(start, start + perPage),
+      total,
+      page,
+      perPage,
+      lastPage: Math.ceil(total / perPage)
+    }
+
+    return inertia.render(
+      'scraper/index' as never,
+      {
+        sources: sources.map((s) => ({
+          ...s.serialize(),
+          availability: availableSources.has(s.sourceKey) ? 'available' : 'unreachable',
+          cronLabel: scraperPipeline.cronLabel(s.scheduleCron),
+        })),
+        lists: lists.map((l) => ({ id: l.id, name: l.name })),
+        overview: {
+          totalSources: sources.length,
+          enabledSources: sources.filter((source) => source.isEnabled).length,
+          configuredSources: sources.filter((source) => source.proxyListId).length,
+          availableSources: sources.filter((source) => availableSources.has(source.sourceKey))
+            .length,
+        },
+        recentRuns,
+      } as never
+    )
   }
 
+  /**
+   * GET /app/scraper/logs — list the runs.
+   */
   async logs({ inertia, request, team }: HttpContext) {
     const qs = request.qs()
-    const page = Number(qs.page ?? 1)
+    const requestedPage = Number(request.input('page', 1))
+    const requestedPerPage = Number(request.input('perPage', 10))
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+
     const status = qs.status ? String(qs.status) : null
     const triggerType = qs.triggerType ? String(qs.triggerType) : null
     const sourceKey = qs.sourceKey ? String(qs.sourceKey) : null
@@ -66,7 +98,7 @@ export default class ScraperSourcesController {
     if (triggerType) query.where('trigger_type', triggerType)
     if (sourceKey) query.where('source_key', sourceKey)
 
-    const runs = await query.paginate(page, 20)
+    const runs = await query.paginate(page, perPage)
     runs.baseUrl(request.url())
 
     const sourceKeys = await ScraperRun.query()
@@ -74,14 +106,17 @@ export default class ScraperSourcesController {
       .distinct('source_key')
       .orderBy('source_key', 'asc')
 
-    return inertia.render('scraper/logs' as never, {
-      runs: {
-        ...runs.serialize(),
-        data: runs.all().map((run) => scraperPipeline.serializeRun(run)),
-      },
-      filters: { status, triggerType, sourceKey },
-      sourceKeys: sourceKeys.map((row) => row.sourceKey),
-    } as never)
+    return inertia.render(
+      'scraper/logs' as never,
+      {
+        runs: {
+          ...runs.serialize(),
+          data: runs.all().map((run) => scraperPipeline.serializeRun(run)),
+        },
+        filters: { status, triggerType, sourceKey },
+        sourceKeys: sourceKeys.map((row) => row.sourceKey),
+      } as never
+    )
   }
 
   /**
@@ -145,6 +180,10 @@ export default class ScraperSourcesController {
     return response.redirect().back()
   }
 
+  /**
+   * POST /app/scraper/logs/run — scrape the enabled sources and import into their target
+   * list (which auto-enqueues health checks).
+   */
   async runEnabled({ request, response, team, session }: HttpContext) {
     const payload = await request.validateUsing(runSourceValidator)
     const mode: CheckMode = payload.mode ?? 'request'
@@ -196,8 +235,21 @@ export default class ScraperSourcesController {
     session.flash(
       'success',
       `Batch scrape finished: ${summary.completedSources} sources succeeded, ${summary.totalCreated} new, ${summary.totalUpdated} updated, ${summary.totalEnqueued} queued for ${mode} checks` +
-        (failed > 0 ? `, ${failed} failed` : '')
+      (failed > 0 ? `, ${failed} failed` : '')
     )
+    return response.redirect().back()
+  }
+
+  /**
+   * POST /app/scraper/logs/delete — delete the selected runs.
+   */
+  async deleteMany({ request, response, team, session }: HttpContext) {
+    const payload = await request.validateUsing(deleteRunsValidator)
+    await ScraperRun.query()
+      .where('team_id', team.id)
+      .whereIn('id', payload.ids)
+      .delete()
+    session.flash('success', 'Selected runs deleted')
     return response.redirect().back()
   }
 }

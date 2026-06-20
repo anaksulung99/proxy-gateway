@@ -50,7 +50,12 @@ router
     router.post('proxy-lists', [controllers.ProxyLists, 'store']).as('proxy-lists.store')
     router.get('proxy-lists/:id', [controllers.ProxyLists, 'show']).as('proxy-lists.show')
     router.patch('proxy-lists/:id', [controllers.ProxyLists, 'update']).as('proxy-lists.update')
-    router.post('proxy-lists/:id/update', [controllers.ProxyLists, 'update']).as('proxy-lists.updatePost')
+    router
+      .delete('proxy-lists/bulk', [controllers.ProxyLists, 'bulkDestroy'])
+      .as('proxy-lists.bulkDestroy')
+    router
+      .post('proxy-lists/:id/update', [controllers.ProxyLists, 'update'])
+      .as('proxy-lists.updatePost')
     router.delete('proxy-lists/:id', [controllers.ProxyLists, 'destroy']).as('proxy-lists.destroy')
     router
       .put('proxy-lists/:id/rotation', [controllers.ProxyLists, 'updateRotation'])
@@ -70,22 +75,40 @@ router
 
     // Gateway usage analytics
     router.get('analytics', [controllers.ProxyUsageAnalytics, 'index']).as('analytics.index')
-    router.get('analytics/export', [controllers.ProxyUsageAnalytics, 'export']).as('analytics.export')
+    router
+      .get('analytics/export', [controllers.ProxyUsageAnalytics, 'export'])
+      .as('analytics.export')
 
     // Tools — external health checker
     router.get('tools', [controllers.ToolsChecker, 'index']).as('tools.index')
     router.get('tools/logs', [controllers.ToolsChecker, 'logs']).as('tools.logs')
     router.post('tools/check', [controllers.ToolsChecker, 'check']).as('tools.check')
+    router
+      .delete('tools/check', [controllers.ToolsChecker, 'deleteMany'])
+      .as('tools.deleteManyPost')
 
     // Scraper — proxy sources
     router.get('scraper', [controllers.ScraperSources, 'index']).as('scraper.index')
     router.get('scraper/logs', [controllers.ScraperSources, 'logs']).as('scraper.logs')
     router.patch('scraper/:id', [controllers.ScraperSources, 'update']).as('scraper.update')
-    router.post('scraper/:id/update', [controllers.ScraperSources, 'update']).as('scraper.updatePost')
+    router
+      .post('scraper/:id/update', [controllers.ScraperSources, 'update'])
+      .as('scraper.updatePost')
     router.post('scraper/:id/run', [controllers.ScraperSources, 'run']).as('scraper.run')
     router
       .post('scraper/run-enabled', [controllers.ScraperSources, 'runEnabled'])
       .as('scraper.runEnabled')
+    router
+      .delete('scraper/logs/delete', [controllers.ScraperSources, 'deleteMany'])
+      .as('scraper.deleteManyPost')
+
+    // Settings — API keys (gateway credentials)
+    router.get('settings/api-keys', [controllers.ApiKeys, 'index']).as('api-keys.index')
+    router.post('settings/api-keys', [controllers.ApiKeys, 'store']).as('api-keys.store')
+    router.delete('settings/api-keys/:id', [controllers.ApiKeys, 'revoke']).as('api-keys.revoke')
+    router
+      .post('settings/api-keys/:id/revoke', [controllers.ApiKeys, 'revoke'])
+      .as('api-keys.revokePost')
   })
   .prefix('app')
   .use([middleware.auth(), middleware.verified(), middleware.team()])

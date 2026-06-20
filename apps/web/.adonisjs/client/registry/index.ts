@@ -114,6 +114,12 @@ const routes = {
     tokens: [{"old":"/app/proxy-lists/:id","type":0,"val":"app","end":""},{"old":"/app/proxy-lists/:id","type":0,"val":"proxy-lists","end":""},{"old":"/app/proxy-lists/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['proxy-lists.update']['types'],
   },
+  'proxy-lists.bulkDestroy': {
+    methods: ["DELETE"],
+    pattern: '/app/proxy-lists/bulk',
+    tokens: [{"old":"/app/proxy-lists/bulk","type":0,"val":"app","end":""},{"old":"/app/proxy-lists/bulk","type":0,"val":"proxy-lists","end":""},{"old":"/app/proxy-lists/bulk","type":0,"val":"bulk","end":""}],
+    types: placeholder as Registry['proxy-lists.bulkDestroy']['types'],
+  },
   'proxy-lists.updatePost': {
     methods: ["POST"],
     pattern: '/app/proxy-lists/:id/update',
@@ -186,6 +192,12 @@ const routes = {
     tokens: [{"old":"/app/tools/check","type":0,"val":"app","end":""},{"old":"/app/tools/check","type":0,"val":"tools","end":""},{"old":"/app/tools/check","type":0,"val":"check","end":""}],
     types: placeholder as Registry['tools.check']['types'],
   },
+  'tools.deleteManyPost': {
+    methods: ["DELETE"],
+    pattern: '/app/tools/check',
+    tokens: [{"old":"/app/tools/check","type":0,"val":"app","end":""},{"old":"/app/tools/check","type":0,"val":"tools","end":""},{"old":"/app/tools/check","type":0,"val":"check","end":""}],
+    types: placeholder as Registry['tools.deleteManyPost']['types'],
+  },
   'scraper.index': {
     methods: ["GET","HEAD"],
     pattern: '/app/scraper',
@@ -221,6 +233,36 @@ const routes = {
     pattern: '/app/scraper/run-enabled',
     tokens: [{"old":"/app/scraper/run-enabled","type":0,"val":"app","end":""},{"old":"/app/scraper/run-enabled","type":0,"val":"scraper","end":""},{"old":"/app/scraper/run-enabled","type":0,"val":"run-enabled","end":""}],
     types: placeholder as Registry['scraper.runEnabled']['types'],
+  },
+  'scraper.deleteManyPost': {
+    methods: ["DELETE"],
+    pattern: '/app/scraper/logs/delete',
+    tokens: [{"old":"/app/scraper/logs/delete","type":0,"val":"app","end":""},{"old":"/app/scraper/logs/delete","type":0,"val":"scraper","end":""},{"old":"/app/scraper/logs/delete","type":0,"val":"logs","end":""},{"old":"/app/scraper/logs/delete","type":0,"val":"delete","end":""}],
+    types: placeholder as Registry['scraper.deleteManyPost']['types'],
+  },
+  'api-keys.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/settings/api-keys',
+    tokens: [{"old":"/app/settings/api-keys","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys","type":0,"val":"api-keys","end":""}],
+    types: placeholder as Registry['api-keys.index']['types'],
+  },
+  'api-keys.store': {
+    methods: ["POST"],
+    pattern: '/app/settings/api-keys',
+    tokens: [{"old":"/app/settings/api-keys","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys","type":0,"val":"api-keys","end":""}],
+    types: placeholder as Registry['api-keys.store']['types'],
+  },
+  'api-keys.revoke': {
+    methods: ["DELETE"],
+    pattern: '/app/settings/api-keys/:id',
+    tokens: [{"old":"/app/settings/api-keys/:id","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys/:id","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys/:id","type":0,"val":"api-keys","end":""},{"old":"/app/settings/api-keys/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['api-keys.revoke']['types'],
+  },
+  'api-keys.revokePost': {
+    methods: ["POST"],
+    pattern: '/app/settings/api-keys/:id/revoke',
+    tokens: [{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"api-keys","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":1,"val":"id","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"revoke","end":""}],
+    types: placeholder as Registry['api-keys.revokePost']['types'],
   },
 } as const satisfies Record<string, AdonisEndpoint>
 

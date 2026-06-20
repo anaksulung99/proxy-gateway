@@ -28,7 +28,7 @@ function fmtDate(value: string | null) {
         <CardTitle>{{ title }}</CardTitle>
         <CardDescription>{{ description }}</CardDescription>
       </div>
-      <Button variant="ghost" size="sm" as-child>
+      <Button class="bg-blue-600 dark:bg-blue-500 text-white" size="sm" as-child>
         <Link :href="href">Open logs</Link>
       </Button>
     </CardHeader>
@@ -36,23 +36,29 @@ function fmtDate(value: string | null) {
       <div v-if="rows.length === 0" class="rounded-xl border p-4 text-sm text-muted-foreground">
         Belum ada aktivitas yang tercatat.
       </div>
-      <div
-        v-for="row in rows"
-        :key="row.id"
-        class="rounded-xl border bg-card/70 p-4"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="font-medium">{{ row.name }}</p>
-            <p class="text-xs text-muted-foreground">{{ row.subtitle }}</p>
+      <ScrollArea class="max-h-[calc(100vh-400px)] overflow-y-auto">
+        <div v-for="row in rows" :key="row.id" class="rounded-xl border bg-card/70 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="font-medium">{{ row.name }}</p>
+              <p class="text-xs text-muted-foreground">{{ row.subtitle }}</p>
+            </div>
+            <Badge
+              :variant="
+                row.status === 'success'
+                  ? 'default'
+                  : row.status === 'error'
+                    ? 'destructive'
+                    : 'secondary'
+              "
+            >
+              {{ row.status }}
+            </Badge>
           </div>
-          <Badge :variant="row.status === 'success' ? 'default' : row.status === 'error' ? 'destructive' : 'secondary'">
-            {{ row.status }}
-          </Badge>
+          <p class="mt-3 text-sm text-muted-foreground">{{ row.meta }}</p>
+          <p class="mt-2 text-xs text-muted-foreground">{{ fmtDate(row.startedAt) }}</p>
         </div>
-        <p class="mt-3 text-sm text-muted-foreground">{{ row.meta }}</p>
-        <p class="mt-2 text-xs text-muted-foreground">{{ fmtDate(row.startedAt) }}</p>
-      </div>
+      </ScrollArea>
     </CardContent>
   </Card>
 </template>

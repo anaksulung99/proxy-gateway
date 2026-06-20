@@ -31,7 +31,7 @@ const props = defineProps<{
     exclusionsLabel: string
     description: string
   }
-  gateway: { host: string; secret: string; username: string }
+  gateway: { host: string; username: string; hasActiveKey: boolean }
   entries: any
   filters: any
   stats: { total: number; healthy: number; unhealthy: number; timeout: number; unknown: number }

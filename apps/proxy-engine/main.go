@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/proxy-system/proxy-engine/internal/apikey"
 	"github.com/proxy-system/proxy-engine/internal/gateway"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/server"
@@ -37,7 +38,8 @@ func main() {
 	repo := pool.NewRepository(pg, 10*time.Second)
 	sel := session.NewSelector(rdb)
 	usageSink := usage.NewSink(pg, log)
-	gw := gateway.New(repo, sel, cfg.GatewaySecret, usageSink, log)
+	keyValidator := apikey.New(pg)
+	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, usageSink, log)
 
 	// Forward-proxy listener
 	go func() {

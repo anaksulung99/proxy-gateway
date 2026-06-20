@@ -9,39 +9,12 @@ const isAdmin = computed(() => userRole.value === 'ADMIN' || userRole.value === 
 
 const navMain: AppNavMain[] = [
   { title: 'Dashboard', href: '/app', icon: 'lucide:layout-dashboard', exact: true },
+  { title: 'Analytics', href: '/app/analytics', icon: 'lucide:chart-column', exact: false },
   { title: 'Proxy Lists', href: '/app/proxy-lists', icon: 'lucide:list', exact: false },
   { title: 'Scraper', href: '/app/scraper', icon: 'lucide:radar', exact: false },
-  { title: 'Analytics', href: '/app/analytics', icon: 'lucide:chart-column', exact: false },
   { title: 'Tools', href: '/app/tools', icon: 'lucide:wrench', exact: false },
+  { title: 'API Keys', href: '/app/settings/api-keys', icon: 'lucide:key-round', exact: false },
 ]
-
-const navSecondary: AppNavMain[] = [
-  {
-    title: 'Accounts',
-    href: '#',
-    icon: 'material-symbols:account-circle',
-    exact: false,
-    children: [
-      {
-        title: 'Profile',
-        href: '/app/accounts',
-        exact: true,
-      },
-      {
-        title: 'License',
-        href: '/app/accounts/license',
-        exact: true,
-      },
-    ],
-  },
-  {
-    title: 'Settings',
-    href: '/app/settings',
-    icon: 'material-symbols:settings-outline',
-    exact: false,
-  },
-]
-
 const navMainItems = computed(() => {
   const items = navMain.filter((item) => {
     if (!item.roles?.length) {
@@ -76,7 +49,7 @@ const showAppName = computed(() => {
 
 <template>
   <Sidebar v-bind="props" class="z-9999">
-    <SidebarHeader class="pt-14 md:pt-0">
+    <SidebarHeader class="pt-14 md:pt-5">
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -112,7 +85,6 @@ const showAppName = computed(() => {
     </SidebarHeader>
     <SidebarContent>
       <AppNavMain :items="navMainItems" />
-      <AppNavSecondary :items="navSecondary" />
     </SidebarContent>
     <SidebarFooter>
       <!-- <AppNavUser :user="user" /> -->

@@ -2,6 +2,7 @@
 import { ref, reactive, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { Icon } from '@iconify/vue'
+import { useGlobalAlert } from '~/composables/useAlert'
 
 interface Entry {
   id: number
@@ -32,6 +33,7 @@ const props = defineProps<{
     search: string | null
   }
 }>()
+const { warning } = useGlobalAlert()
 
 const ANY = '__any__'
 const filters = reactive({
@@ -83,17 +85,23 @@ function goPage(page: number) {
 function bulk(action: 'delete' | 'recheck') {
   const ids = [...selected.value]
   if (ids.length === 0) return
-  if (action === 'delete' && !confirm(`Delete ${ids.length} proxies?`)) return
-  router.post(
-    '/app/proxy-entries/bulk',
-    { listId: props.listId, action, ids },
-    {
-      preserveScroll: true,
-      onSuccess: () => {
-        selected.value = new Set()
-      },
-    }
-  )
+  if (action === 'delete') {
+    warning('Warning!', `Are you sure you want to delete ${ids.length} proxies?`).then(
+      (confirm) => {
+        if (!confirm) return
+        router.post(
+          '/app/proxy-entries/bulk',
+          { listId: props.listId, action, ids },
+          {
+            preserveScroll: true,
+            onSuccess: () => {
+              selected.value = new Set()
+            },
+          }
+        )
+      }
+    )
+  }
 }
 
 const exportUrl = computed(() => {

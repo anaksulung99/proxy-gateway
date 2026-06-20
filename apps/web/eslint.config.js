@@ -15,5 +15,6 @@ export default configApp(...vue, {
     '@unicorn/filename-case': 'off',
     'unicorn/filename-case': 'off',
     'vue/require-default-prop': 'off',
+    'prettier/prettier': 'off',
   },
 })

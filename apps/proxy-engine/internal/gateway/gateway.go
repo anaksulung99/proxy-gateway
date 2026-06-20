@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/proxy-system/proxy-engine/internal/apikey"
 	"github.com/proxy-system/proxy-engine/internal/filter"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/session"
@@ -31,13 +32,21 @@ type Gateway struct {
 	repo   *pool.Repository
 	sel    *session.Selector
 	secret string
+	keys   *apikey.Validator
 	usage  *usage.Sink
 	log    zerolog.Logger
 	srv    *http.Server
 }
 
-func New(repo *pool.Repository, sel *session.Selector, secret string, usageSink *usage.Sink, log zerolog.Logger) *Gateway {
-	return &Gateway{repo: repo, sel: sel, secret: secret, usage: usageSink, log: log}
+func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, usageSink *usage.Sink, log zerolog.Logger) *Gateway {
+	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, usage: usageSink, log: log}
+}
+
+// authIdentity is the resolved caller after a successful Proxy-Authorization.
+type authIdentity struct {
+	master bool  // authenticated with the master GATEWAY_SECRET
+	teamID int64 // owning team (for API-key auth)
+	keyID  int64 // api_keys.id (for last-used tracking)
 }
 
 func (g *Gateway) ListenAndServe(addr string) error {
@@ -60,7 +69,7 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startedAt := time.Now()
 	targetHost, targetPort, targetScheme := targetDetails(r)
-	listID, sessionID, country, ok := g.authenticate(r)
+	listID, sessionID, country, auth, ok := g.authenticate(r)
 	if !ok {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="proxy"`)
 		http.Error(w, "Proxy authentication required", http.StatusProxyAuthRequired)
@@ -124,6 +133,31 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RequestedAt:     startedAt.UTC(),
 		})
 		return
+	}
+
+	// API keys are team-scoped: the key's team must own the requested list.
+	if !auth.master && auth.teamID != cfg.TeamID {
+		http.Error(w, "API key not authorized for this list", http.StatusForbidden)
+		g.recordUsage(usage.Event{
+			TeamID:          cfg.TeamID,
+			ProxyListID:     cfg.ID,
+			RequestMethod:   r.Method,
+			TargetHost:      targetHost,
+			TargetPort:      int(targetPort),
+			TargetScheme:    targetScheme,
+			IsTunnel:        r.Method == http.MethodConnect,
+			Success:         false,
+			StatusCode:      http.StatusForbidden,
+			DurationMs:      time.Since(startedAt).Milliseconds(),
+			SessionKey:      sessionID,
+			CountryOverride: country,
+			ErrorMessage:    "api key team mismatch",
+			RequestedAt:     startedAt.UTC(),
+		})
+		return
+	}
+	if g.keys != nil {
+		g.keys.TouchLastUsed(auth.keyID)
 	}
 
 	candidates := filter.Apply(cfg.Proxies, cfg.Rotation, country)
@@ -245,30 +279,41 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// authenticate parses Proxy-Authorization (Basic). Password must equal the
-// gateway secret. Username encodes routing: a bare list id ("1") or
-// "list-<id>[-session-<sid>][-country-<cc>]".
-func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, country string, ok bool) {
+// authenticate parses Proxy-Authorization (Basic). The password is either the
+// master GATEWAY_SECRET (works for any list) or a per-team API key (the list's
+// team must match the key's team — enforced after the list is loaded). Username
+// encodes routing: a bare list id ("1") or "list-<id>[-session-<sid>][-country-<cc>]".
+func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
 	h := r.Header.Get("Proxy-Authorization")
 	if !strings.HasPrefix(h, "Basic ") {
-		return 0, "", "", false
+		return 0, "", "", authIdentity{}, false
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(h, "Basic "))
 	if err != nil {
-		return 0, "", "", false
+		return 0, "", "", authIdentity{}, false
 	}
 	user, pass, found := strings.Cut(string(raw), ":")
 	if !found {
-		return 0, "", "", false
+		return 0, "", "", authIdentity{}, false
 	}
-	if subtle.ConstantTimeCompare([]byte(pass), []byte(g.secret)) != 1 {
-		return 0, "", "", false
+
+	if g.secret != "" && subtle.ConstantTimeCompare([]byte(pass), []byte(g.secret)) == 1 {
+		auth.master = true
+	} else if g.keys != nil {
+		teamID, keyID, valid := g.keys.Validate(r.Context(), pass)
+		if !valid {
+			return 0, "", "", authIdentity{}, false
+		}
+		auth.teamID, auth.keyID = teamID, keyID
+	} else {
+		return 0, "", "", authIdentity{}, false
 	}
+
 	listID, sessionID, country = parseUser(user)
 	if listID == 0 {
-		return 0, "", "", false
+		return 0, "", "", authIdentity{}, false
 	}
-	return listID, sessionID, country, true
+	return listID, sessionID, country, auth, true
 }
 
 func parseUser(u string) (listID int64, sessionID, country string) {

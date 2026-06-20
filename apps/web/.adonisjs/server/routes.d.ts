@@ -22,6 +22,7 @@ export type ScannedRoutes = {
     'proxy-lists.store': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'proxy-lists.bulkDestroy': { paramsTuple?: []; params?: {} }
     'proxy-lists.updatePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.rotation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -34,12 +35,18 @@ export type ScannedRoutes = {
     'tools.index': { paramsTuple?: []; params?: {} }
     'tools.logs': { paramsTuple?: []; params?: {} }
     'tools.check': { paramsTuple?: []; params?: {} }
+    'tools.deleteManyPost': { paramsTuple?: []; params?: {} }
     'scraper.index': { paramsTuple?: []; params?: {} }
     'scraper.logs': { paramsTuple?: []; params?: {} }
     'scraper.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.updatePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.run': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.runEnabled': { paramsTuple?: []; params?: {} }
+    'scraper.deleteManyPost': { paramsTuple?: []; params?: {} }
+    'api-keys.index': { paramsTuple?: []; params?: {} }
+    'api-keys.store': { paramsTuple?: []; params?: {} }
+    'api-keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   GET: {
     'home': { paramsTuple?: []; params?: {} }
@@ -59,6 +66,7 @@ export type ScannedRoutes = {
     'tools.logs': { paramsTuple?: []; params?: {} }
     'scraper.index': { paramsTuple?: []; params?: {} }
     'scraper.logs': { paramsTuple?: []; params?: {} }
+    'api-keys.index': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
     'home': { paramsTuple?: []; params?: {} }
@@ -78,6 +86,7 @@ export type ScannedRoutes = {
     'tools.logs': { paramsTuple?: []; params?: {} }
     'scraper.index': { paramsTuple?: []; params?: {} }
     'scraper.logs': { paramsTuple?: []; params?: {} }
+    'api-keys.index': { paramsTuple?: []; params?: {} }
   }
   POST: {
     'new_account.store': { paramsTuple?: []; params?: {} }
@@ -95,13 +104,19 @@ export type ScannedRoutes = {
     'scraper.updatePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.run': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.runEnabled': { paramsTuple?: []; params?: {} }
+    'api-keys.store': { paramsTuple?: []; params?: {} }
+    'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PATCH: {
     'proxy-lists.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   DELETE: {
+    'proxy-lists.bulkDestroy': { paramsTuple?: []; params?: {} }
     'proxy-lists.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'tools.deleteManyPost': { paramsTuple?: []; params?: {} }
+    'scraper.deleteManyPost': { paramsTuple?: []; params?: {} }
+    'api-keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PUT: {
     'proxy-lists.rotation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

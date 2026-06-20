@@ -26,7 +26,10 @@ export default class AuthController {
         await sendPasswordResetEmail(user, origin(request))
       }
     } catch {
-      session.flash('error', 'The reset email could not be sent. Check the SMTP configuration and try again.')
+      session.flash(
+        'error',
+        'The reset email could not be sent. Check the SMTP configuration and try again.'
+      )
       return response.redirect().back()
     }
 
@@ -79,7 +82,10 @@ export default class AuthController {
     try {
       await sendVerificationEmail(user, origin(request))
     } catch {
-      session.flash('error', 'The verification email could not be sent. Check the SMTP configuration and try again.')
+      session.flash(
+        'error',
+        'The verification email could not be sent. Check the SMTP configuration and try again.'
+      )
       return response.redirect().back()
     }
     session.flash('success', 'A new verification link has been sent to your email.')

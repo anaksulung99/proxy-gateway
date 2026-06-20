@@ -40,7 +40,10 @@ const props = defineProps<{
         <Field>
           <div class="flex items-center">
             <FieldLabel for="password"> Password </FieldLabel>
-            <Link href="/forgot-password" class="ml-auto text-sm underline-offset-4 hover:underline">
+            <Link
+              href="/forgot-password"
+              class="ml-auto text-sm underline-offset-4 hover:underline"
+            >
               Forgot your password?
             </Link>
           </div>

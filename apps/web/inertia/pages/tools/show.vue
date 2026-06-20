@@ -3,6 +3,7 @@ import { reactive } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { useGlobalAlert } from '~/composables/useAlert'
 
 interface RunRow {
   id: number
@@ -36,10 +37,28 @@ const props = defineProps<{
   filters: { status: string | null; sourceType: string | null }
 }>()
 
+const { warning } = useGlobalAlert()
+
 const ANY = '__any__'
 const filters = reactive({
   status: props.filters.status ?? ANY,
   sourceType: props.filters.sourceType ?? ANY,
+})
+const hasFilters = computed(() => filters.status !== ANY || filters.sourceType !== ANY)
+
+const firstRow = computed(() =>
+  props.runs.meta.total === 0 ? 0 : (props.runs.meta.currentPage - 1) * props.runs.meta.perPage + 1
+)
+const lastRow = computed(() =>
+  Math.min(props.runs.meta.currentPage * props.runs.meta.perPage, props.runs.meta.total)
+)
+const selected = ref<Set<number>>(new Set())
+const allOnPageSelected = computed(
+  () => props.runs.data.length > 0 && props.runs.data.every((row) => selected.value.has(row.id))
+)
+const selectAllState = computed<boolean | 'indeterminate'>(() => {
+  if (allOnPageSelected.value) return true
+  return props.runs.data.some((row) => selected.value.has(row.id)) ? 'indeterminate' : false
 })
 
 function buildQuery(extra: Record<string, string | number> = {}) {
@@ -50,13 +69,65 @@ function buildQuery(extra: Record<string, string | number> = {}) {
 }
 
 function applyFilters() {
-  router.get('/app/tools/logs', buildQuery(), { preserveScroll: true, preserveState: true })
+  router.get('/app/tools/logs', buildQuery({ page: props.runs.meta.currentPage }), {
+    preserveScroll: true,
+    preserveState: true,
+  })
 }
 
 function goPage(page: number) {
-  router.get('/app/tools/logs', buildQuery({ page }), {
+  router.get('/app/tools/logs', buildQuery({ page, perPage: props.runs.meta.perPage }), {
     preserveScroll: true,
     preserveState: true,
+  })
+}
+
+function changeLimit(value: unknown) {
+  const perPage = Number(value)
+  router.get('/app/tools/logs', buildQuery({ page: props.runs.meta.currentPage, perPage }), {
+    preserveScroll: true,
+    preserveState: true,
+  })
+}
+
+function toggleAll(value: boolean | 'indeterminate') {
+  const next = new Set(selected.value)
+  for (const row of props.runs.data) {
+    if (value === true) next.add(row.id)
+    else next.delete(row.id)
+  }
+  selected.value = next
+}
+
+function toggleOne(id: number, value: boolean | 'indeterminate') {
+  const next = new Set(selected.value)
+  if (value === true) next.add(id)
+  else next.delete(id)
+  selected.value = next
+}
+
+function clearFilter() {
+  filters.status = ANY
+  filters.sourceType = ANY
+  applyFilters()
+}
+
+function destroySelected() {
+  const ids = [...selected.value]
+  if (ids.length === 0) return
+  warning(
+    'Warning!',
+    `Are you sure you want to delete ${ids.length} selected health check runs?`
+  ).then((confirm) => {
+    if (!confirm) return
+    router.delete('/app/tools/check', {
+      data: { ids },
+      preserveScroll: true,
+      onSuccess: () => {
+        selected.value = new Set()
+        applyFilters()
+      },
+    })
   })
 }
 
@@ -83,12 +154,12 @@ function fmtDate(value: string | null) {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div class="grid gap-1">
             <Label class="text-xs">Status</Label>
             <Select v-model="filters.status">
-              <SelectTrigger class="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent class="w-full">
                 <SelectItem :value="ANY">All</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
                 <SelectItem value="error">Error</SelectItem>
@@ -100,27 +171,59 @@ function fmtDate(value: string | null) {
           <div class="grid gap-1">
             <Label class="text-xs">Source</Label>
             <Select v-model="filters.sourceType">
-              <SelectTrigger class="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent class="w-full">
                 <SelectItem :value="ANY">All sources</SelectItem>
                 <SelectItem value="tools">Tools Checker</SelectItem>
                 <SelectItem value="proxy_list_bulk">Proxy List Bulk Re-check</SelectItem>
               </SelectContent>
             </Select>
           </div>
-
-          <Button variant="secondary" @click="applyFilters">
-            <Icon icon="lucide:filter" class="mr-2 size-4" /> Apply
+        </div>
+        <div class="flex items-center gap-2 justify-end">
+          <Button @click="applyFilters">
+            <Icon icon="lucide:filter" class="size-4" /> Apply
+          </Button>
+          <Button v-if="hasFilters" variant="destructive" @click="clearFilter">
+            <Icon icon="lucide:x" class="size-4" /> Clear
           </Button>
         </div>
       </CardContent>
     </Card>
 
     <Card class="border-border/70">
-      <CardContent class="p-0">
+      <CardHeader>
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>Recent Health Check Runs</CardTitle>
+            <CardDescription>
+              Riwayat terbaru checker dari Tools maupun bulk re-check Proxy Lists.
+            </CardDescription>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="selected.size > 0"
+              variant="destructive"
+              size="sm"
+              @click="destroySelected"
+            >
+              <Icon icon="lucide:trash-2" class="mr-1 size-4" />
+              Delete selected ({{ selected.size }})
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="p-0 space-y-4">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead class="w-10">
+                <Checkbox
+                  :model-value="selectAllState"
+                  class="border border-emerald-500/50"
+                  @update:model-value="toggleAll"
+                />
+              </TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Mode</TableHead>
@@ -136,6 +239,13 @@ function fmtDate(value: string | null) {
               </TableCell>
             </TableRow>
             <TableRow v-for="run in runs.data" :key="run.id">
+              <TableCell>
+                <Checkbox
+                  :model-value="selected.has(run.id)"
+                  class="border border-emerald-500/50"
+                  @update:model-value="(value) => toggleOne(run.id, value)"
+                />
+              </TableCell>
               <TableCell>
                 <div class="font-medium uppercase">{{ run.sourceType }}</div>
                 <div class="text-xs text-muted-foreground">Run #{{ run.id }}</div>
@@ -159,7 +269,7 @@ function fmtDate(value: string | null) {
               <TableCell class="max-w-65 truncate text-xs text-muted-foreground">
                 {{ run.targetUrl || 'Default target URL' }}
               </TableCell>
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <div class="text-sm">
                   {{ run.checkedCount }} checked / {{ run.totalInputs }} input ·
                   {{ run.healthyCount }} healthy
@@ -172,38 +282,51 @@ function fmtDate(value: string | null) {
                   {{ run.errorMessage }}
                 </div>
               </TableCell>
-              <TableCell class="text-xs text-muted-foreground">
+              <TableCell class="text-xs text-muted-foreground max-w-20 whitespace-normal">
                 <div>{{ fmtDate(run.startedAt) }}</div>
                 <div>Finished: {{ fmtDate(run.finishedAt) }}</div>
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
+        <div
+          class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex items-center gap-2">
+            <span>Rows per page</span>
+            <Select :model-value="String(runs.meta.perPage)" @update:model-value="changeLimit">
+              <SelectTrigger class="h-8 w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span>{{ firstRow }}-{{ lastRow }} of {{ runs.meta.total }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span>Page {{ runs.meta.currentPage }} of {{ runs.meta.lastPage }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="runs.meta.currentPage <= 1"
+              @click="goPage(runs.meta.currentPage - 1)"
+            >
+              Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="runs.meta.currentPage >= runs.meta.lastPage"
+              @click="goPage(runs.meta.currentPage + 1)"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
-
-    <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span>
-        {{ runs.meta.total }} runs · page {{ runs.meta.currentPage }} / {{ runs.meta.lastPage }}
-      </span>
-      <div class="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="runs.meta.currentPage <= 1"
-          @click="goPage(runs.meta.currentPage - 1)"
-        >
-          Prev
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="runs.meta.currentPage >= runs.meta.lastPage"
-          @click="goPage(runs.meta.currentPage + 1)"
-        >
-          Next
-        </Button>
-      </div>
-    </div>
   </AppShell>
 </template>

@@ -223,6 +223,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'proxy-lists.bulkDestroy': {
+    methods: ["DELETE"]
+    pattern: '/app/proxy-lists/bulk'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_list').deleteProxyListValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_list').deleteProxyListValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['bulkDestroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_lists_controller').default['bulkDestroy']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'proxy-lists.updatePost': {
     methods: ["POST"]
     pattern: '/app/proxy-lists/:id/update'
@@ -367,6 +379,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['check']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'tools.deleteManyPost': {
+    methods: ["DELETE"]
+    pattern: '/app/tools/check'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/tools_check').deleteToolsCheckValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/tools_check').deleteToolsCheckValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['deleteMany']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/tools_checker_controller').default['deleteMany']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'scraper.index': {
     methods: ["GET","HEAD"]
     pattern: '/app/scraper'
@@ -437,6 +461,66 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['runEnabled']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['runEnabled']>>>
+    }
+  }
+  'scraper.deleteManyPost': {
+    methods: ["DELETE"]
+    pattern: '/app/scraper/logs/delete'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/scraper_run').deleteRunsValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/scraper_run').deleteRunsValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['deleteMany']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/scraper_sources_controller').default['deleteMany']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'api-keys.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/settings/api-keys'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['index']>>>
+    }
+  }
+  'api-keys.store': {
+    methods: ["POST"]
+    pattern: '/app/settings/api-keys'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/api_key').createApiKeyValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/api_key').createApiKeyValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'api-keys.revoke': {
+    methods: ["DELETE"]
+    pattern: '/app/settings/api-keys/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
+    }
+  }
+  'api-keys.revokePost': {
+    methods: ["POST"]
+    pattern: '/app/settings/api-keys/:id/revoke'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
     }
   }
 }

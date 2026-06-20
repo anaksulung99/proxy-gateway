@@ -79,7 +79,6 @@ export default defineConfig({
     () => import('#start/validator'),
     () => import('#start/scraper_scheduler'),
     () => import('#start/proxy_usage_retention'),
-    () => import('#start/geo_enrichment'),
   ],
 
   /*

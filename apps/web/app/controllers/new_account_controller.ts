@@ -17,7 +17,10 @@ export default class NewAccountController {
       await sendVerificationEmail(user, `${request.protocol()}://${request.host()}`)
       session.flash('success', 'Account created. Check your inbox to verify your email.')
     } catch {
-      session.flash('error', 'Account created, but the verification email could not be sent. Try resending it.')
+      session.flash(
+        'error',
+        'Account created, but the verification email could not be sent. Try resending it.'
+      )
     }
     response.redirect().toPath('/verify-email')
   }

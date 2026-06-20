@@ -6,9 +6,12 @@ export default class ApiKeyTransformer extends BaseTransformer<ApiKey> {
     return this.pick(this.resource, [
       'id',
       'userId',
+      'teamId',
       'name',
-      'token',
+      'tokenHash',
+      'tokenPrefix',
       'lastUsedAt',
+      'revokedAt',
       'createdAt',
       'updatedAt',
     ])

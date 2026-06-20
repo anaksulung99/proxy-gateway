@@ -1,35 +1,60 @@
 import { ProxyImportService } from '#services/proxy_import_service'
 import healthClient from '#services/health_check_client_service'
 import HealthCheckRun from '#models/health_check_run'
-import { toolsCheckValidator } from '#validators/tools_check'
+import { toolsCheckValidator, deleteToolsCheckValidator } from '#validators/tools_check'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class ToolsCheckerController {
+  private async paginateRecentRuns(teamId: number, page: number, perPage: number) {
+    const runs = await HealthCheckRun.query()
+      .where('team_id', teamId)
+      .orderBy('started_at', 'desc')
+      .paginate(page, perPage)
+
+    return {
+      data: runs.all().map((run) => healthClient.serializeRun(run)),
+      meta: runs.getMeta(),
+    }
+  }
+
   /**
    * GET /app/tools — external proxy checker.
    */
-  async index({ inertia, team }: HttpContext) {
-    const recentRuns = await healthClient.listRecentRuns(team.id, 6)
+  async index({ inertia, request, team }: HttpContext) {
+    const requestedPage = Number(request.input('page', 1))
+    const requestedPerPage = Number(request.input('perPage', 10))
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const perPage = [5, 10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+
     return inertia.render(
       'tools/index' as never,
-      { results: null, input: null, recentRuns } as never
+      {
+        results: null,
+        input: null,
+        ...(await this.paginateRecentRuns(team.id, page, perPage)),
+      } as never
     )
   }
 
+  /**
+   * GET /app/tools/logs — show the health check logs.
+   */
   async logs({ inertia, request, team }: HttpContext) {
     const qs = request.qs()
-    const page = Number(qs.page ?? 1)
+    const requestedPage = Number(request.input('page', 1))
+    const requestedPerPage = Number(request.input('perPage', 10))
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const perPage = [5, 10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+
     const status = qs.status ? String(qs.status) : null
     const sourceType = qs.sourceType ? String(qs.sourceType) : null
 
-    const query = HealthCheckRun.query()
-      .where('team_id', team.id)
-      .orderBy('started_at', 'desc')
+    const query = HealthCheckRun.query().where('team_id', team.id).orderBy('started_at', 'desc')
 
     if (status) query.where('status', status)
     if (sourceType) query.where('source_type', sourceType)
 
-    const runs = await query.paginate(page, 20)
+    const runs = await query.paginate(page, perPage)
     runs.baseUrl(request.url())
 
     return inertia.render(
@@ -54,11 +79,14 @@ export default class ToolsCheckerController {
     const { valid, invalid } = ProxyImportService.parse(payload.raw, 'http')
     if (valid.length === 0) {
       session.flash('error', 'No valid proxies found in the input')
-      return inertia.render('tools/index' as never, {
-        results: null,
-        input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
-        recentRuns: await healthClient.listRecentRuns(team.id, 6),
-      } as never)
+      return inertia.render(
+        'tools/index' as never,
+        {
+          results: null,
+          input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
+          ...(await this.paginateRecentRuns(team.id, 1, 10)),
+        } as never
+      )
     }
 
     let results
@@ -90,11 +118,14 @@ export default class ToolsCheckerController {
       session.flash('healthCheckRunSummary', tracked.summary)
     } catch (err) {
       session.flash('error', (err as Error).message)
-      return inertia.render('tools/index' as never, {
-        results: null,
-        input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
-        recentRuns: await healthClient.listRecentRuns(team.id, 6),
-      } as never)
+      return inertia.render(
+        'tools/index' as never,
+        {
+          results: null,
+          input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
+          ...(await this.paginateRecentRuns(team.id, 1, 10)),
+        } as never
+      )
     }
 
     const healthy = results.filter((r) => r.healthy).length
@@ -103,10 +134,22 @@ export default class ToolsCheckerController {
       `Checked ${results.length} proxies — ${healthy} healthy, ${invalid.length} invalid skipped`
     )
 
-    return inertia.render('tools/index' as never, {
-      results,
-      input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
-      recentRuns: await healthClient.listRecentRuns(team.id, 6),
-    } as never)
+    return inertia.render(
+      'tools/index' as never,
+      {
+        results,
+        input: { mode: payload.mode, targetUrl: payload.targetUrl ?? '', raw: payload.raw },
+        ...(await this.paginateRecentRuns(team.id, 1, 10)),
+      } as never
+    )
+  }
+
+  /**
+   * DELETE /app/tools/check — delete the specified health check runs.
+   */
+  async deleteMany({ request, response, team }: HttpContext) {
+    const payload = await request.validateUsing(deleteToolsCheckValidator)
+    await HealthCheckRun.query().where('team_id', team.id).whereIn('id', payload.ids).delete()
+    return response.redirect().back()
   }
 }

@@ -10,9 +10,12 @@ export default class extends BaseSchema {
 
     // Accounts created before email verification existed remain usable.
     this.defer(async (db) => {
-      await db.from(this.tableName).whereNull('email_verified_at').update({
-        email_verified_at: db.raw('CURRENT_TIMESTAMP'),
-      })
+      await db
+        .from(this.tableName)
+        .whereNull('email_verified_at')
+        .update({
+          email_verified_at: db.raw('CURRENT_TIMESTAMP'),
+        })
     })
   }
 

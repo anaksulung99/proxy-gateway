@@ -5,3 +5,7 @@ export const toolsCheckValidator = vine.create({
   mode: vine.enum(['request', 'playwright', 'crawlee'] as const),
   targetUrl: vine.string().trim().url().optional(),
 })
+
+export const deleteToolsCheckValidator = vine.create({
+  ids: vine.array(vine.number().positive()).minLength(1),
+})

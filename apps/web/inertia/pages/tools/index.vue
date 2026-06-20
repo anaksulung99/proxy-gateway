@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Head, useForm, usePage } from '@inertiajs/vue3'
+import { Head, router, useForm, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { useGlobalAlert } from '~/composables/useAlert'
 
 interface Result {
   label: string
@@ -32,11 +33,21 @@ interface RecentRun {
   finishedAt: string | null
 }
 
+interface Pagination {
+  total: number
+  currentPage: number
+  lastPage: number
+  perPage: number
+}
+
 const props = defineProps<{
   results: Result[] | null
   input: { mode: string; targetUrl: string; raw: string } | null
-  recentRuns: RecentRun[]
+  data: RecentRun[]
+  meta: Pagination
 }>()
+
+const { warning } = useGlobalAlert()
 
 const form = useForm({
   raw: props.input?.raw ?? '',
@@ -65,9 +76,77 @@ const page = usePage<{
 }>()
 
 const runSummary = computed(() => page.props.flash?.healthCheckRunSummary ?? null)
+const firstRow = computed(() =>
+  props.meta.total === 0 ? 0 : (props.meta.currentPage - 1) * props.meta.perPage + 1
+)
+const lastRow = computed(() =>
+  Math.min(props.meta.currentPage * props.meta.perPage, props.meta.total)
+)
+const selected = ref<Set<number>>(new Set())
+const allOnPageSelected = computed(
+  () => props.data.length > 0 && props.data.every((row) => selected.value.has(row.id))
+)
+const selectAllState = computed<boolean | 'indeterminate'>(() => {
+  if (allOnPageSelected.value) return true
+  return props.data.some((row) => selected.value.has(row.id)) ? 'indeterminate' : false
+})
 
 function run() {
   form.post('/app/tools/check', { preserveScroll: true })
+}
+
+function loadPage(targetPage: number, perPage = props.meta.perPage) {
+  router.get(
+    '/app/tools',
+    {
+      page: targetPage,
+      perPage,
+    },
+    {
+      preserveScroll: true,
+      preserveState: true,
+    }
+  )
+}
+
+function changeLimit(value: unknown) {
+  const perPage = Number(value)
+  loadPage(1, perPage)
+}
+
+function toggleAll(value: boolean | 'indeterminate') {
+  const next = new Set(selected.value)
+  for (const row of props.data) {
+    if (value === true) next.add(row.id)
+    else next.delete(row.id)
+  }
+  selected.value = next
+}
+
+function toggleOne(id: number, value: boolean | 'indeterminate') {
+  const next = new Set(selected.value)
+  if (value === true) next.add(id)
+  else next.delete(id)
+  selected.value = next
+}
+
+function destroySelected() {
+  const ids = [...selected.value]
+  if (ids.length === 0) return
+  warning(
+    'Warning!',
+    `Are you sure you want to delete ${ids.length} selected health check runs?`
+  ).then((confirm) => {
+    if (!confirm) return
+    router.delete('/app/tools/check', {
+      data: { ids },
+      preserveScroll: true,
+      onSuccess: () => {
+        selected.value = new Set()
+        loadPage(1)
+      },
+    })
+  })
 }
 </script>
 
@@ -187,15 +266,33 @@ function run() {
               Riwayat terbaru checker dari Tools maupun bulk re-check Proxy Lists.
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" as-child>
-            <Link href="/app/tools/logs">Open full history</Link>
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button
+              v-if="selected.size > 0"
+              variant="destructive"
+              size="sm"
+              @click="destroySelected"
+            >
+              <Icon icon="lucide:trash-2" class="mr-1 size-4" />
+              Delete selected ({{ selected.size }})
+            </Button>
+            <Button variant="ghost" size="sm" as-child>
+              <Link href="/app/tools/logs">Open full history</Link>
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent class="p-0">
+      <CardContent class="p-0 space-y-4">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead class="w-10">
+                <Checkbox
+                  :model-value="selectAllState"
+                  class="border border-emerald-500/50"
+                  @update:model-value="toggleAll"
+                />
+              </TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Mode</TableHead>
@@ -204,12 +301,19 @@ function run() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-if="recentRuns.length === 0">
+            <TableRow v-if="data.length === 0">
               <TableCell colspan="5" class="py-8 text-center text-muted-foreground">
                 No health check runs recorded yet.
               </TableCell>
             </TableRow>
-            <TableRow v-for="rn in recentRuns" :key="rn.id">
+            <TableRow v-for="rn in data" :key="rn.id">
+              <TableCell>
+                <Checkbox
+                  :model-value="selected.has(rn.id)"
+                  class="border border-emerald-500/50"
+                  @update:model-value="(value) => toggleOne(rn.id, value)"
+                />
+              </TableCell>
               <TableCell>
                 <div class="font-medium uppercase">{{ rn.sourceType }}</div>
                 <div class="text-xs text-muted-foreground">
@@ -247,6 +351,43 @@ function run() {
             </TableRow>
           </TableBody>
         </Table>
+        <div
+          class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex items-center gap-2">
+            <span>Rows per page</span>
+            <Select :model-value="String(meta.perPage)" @update:model-value="changeLimit">
+              <SelectTrigger class="h-8 w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span>{{ firstRow }}-{{ lastRow }} of {{ meta.total }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span>Page {{ meta.currentPage }} of {{ meta.lastPage }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="meta.currentPage <= 1"
+              @click="loadPage(meta.currentPage - 1)"
+            >
+              Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="meta.currentPage >= meta.lastPage"
+              @click="loadPage(meta.currentPage + 1)"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   </AppShell>

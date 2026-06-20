@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { AlertCircle, CheckCircle2, AlertTriangle, Info, X } from '@lucide/vue'
 import { useGlobalAlert } from '@/composables/useAlert'
 import { cn } from '@/lib/utils'
@@ -30,12 +30,13 @@ const IconComponent = computed(() => {
 </script>
 
 <template>
-  <AlertDialog :open="isOpen" @update:open="handleOpenChange">
-    <AlertDialogContent
-      class="max-w-sm"
+  <Dialog :open="isOpen" @update:open="handleOpenChange">
+    <DialogContent
+      overlay-class="z-[10000]"
+      :show-close-button="false"
       :class="
         cn(
-          'border-2 transition-colors duration-200',
+          'z-[10001] max-w-sm border-2 transition-colors duration-200',
           currentConfig?.containerClass ?? 'border-border'
         )
       "
@@ -51,7 +52,7 @@ const IconComponent = computed(() => {
       </button>
 
       <!-- Header -->
-      <AlertDialogHeader class="items-center text-center sm:items-start sm:text-left">
+      <DialogHeader class="items-center text-center sm:items-start sm:text-left">
         <!-- Icon -->
         <div
           v-if="IconComponent"
@@ -69,16 +70,16 @@ const IconComponent = computed(() => {
         </div>
 
         <!-- Title & Description -->
-        <AlertDialogTitle class="leading-tight">
+        <DialogTitle class="leading-tight">
           {{ currentAlert?.title ?? '' }}
-        </AlertDialogTitle>
-        <AlertDialogDescription v-if="currentAlert?.description" class="text-center sm:text-left">
+        </DialogTitle>
+        <DialogDescription v-if="currentAlert?.description" class="text-center sm:text-left">
           {{ currentAlert.description }}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
+        </DialogDescription>
+      </DialogHeader>
 
       <!-- Footer -->
-      <AlertDialogFooter class="flex-col-reverse gap-2 sm:flex-row sm:gap-3">
+      <DialogFooter class="flex-col-reverse gap-2 sm:flex-row sm:gap-3">
         <button
           v-if="currentAlert && !currentAlert.persistent"
           type="button"
@@ -112,7 +113,7 @@ const IconComponent = computed(() => {
         >
           {{ currentAlert.confirmLabel }}
         </button>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>

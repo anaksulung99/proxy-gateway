@@ -304,9 +304,7 @@ export class HealthCheckClientService {
     })
 
     // Geo/ASN enrichment from each proxy's exit IP — makes geo filters work.
-    const enrichIds = entries
-      .filter((e) => byId.get(String(e.id))?.returnedIp)
-      .map((e) => e.id)
+    const enrichIds = entries.filter((e) => byId.get(String(e.id))?.returnedIp).map((e) => e.id)
     if (enrichIds.length > 0) {
       const enrichPromise = geoEnrichment
         .enrichByIds(enrichIds)

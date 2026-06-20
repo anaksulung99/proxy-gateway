@@ -34,6 +34,14 @@ interface RecentRun {
   finishedAt: string | null
 }
 
+interface RecentRuns {
+  data: RecentRun[]
+  total: number
+  page: number
+  perPage: number
+  lastPage: number
+}
+
 const props = defineProps<{
   sources: Source[]
   lists: { id: number; name: string }[]
@@ -43,7 +51,7 @@ const props = defineProps<{
     configuredSources: number
     availableSources: number
   }
-  recentRuns: RecentRun[]
+  recentRuns: RecentRuns
 }>()
 
 const NONE = '__none__'
@@ -62,6 +70,27 @@ for (const source of props.sources) {
 }
 
 const scraperRunSummary = computed(() => page.props.flash?.scraperRunSummary ?? null)
+
+const firstRow = computed(() =>
+  props.recentRuns.total === 0 ? 0 : (props.recentRuns.page - 1) * props.recentRuns.perPage + 1
+)
+const lastRow = computed(() =>
+  Math.min(props.recentRuns.page * props.recentRuns.perPage, props.recentRuns.total)
+)
+
+function loadPage(currentPage: number, perPage = props.recentRuns.perPage) {
+  router.get(
+    '/app/scraper',
+    {
+      page: currentPage,
+      perPage,
+    },
+    {
+      preserveState: true,
+      preserveScroll: true,
+    }
+  )
+}
 
 function setTarget(source: Source, value: string) {
   router.post(
@@ -111,6 +140,11 @@ function runEnabledSources() {
       },
     }
   )
+}
+
+function changeLimit(value: unknown) {
+  const perPage = Number(value)
+  loadPage(1, perPage)
 }
 
 function fmtDate(s: string | null) {
@@ -163,37 +197,37 @@ function fmtDate(s: string | null) {
             </CardDescription>
           </div>
 
-          <div class="flex flex-col w-full gap-3 sm:flex-row sm:items-end">
-            <div class="grid gap-1">
-              <Label class="text-xs">Health check mode</Label>
-              <Select v-model="runMode">
-                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent class="w-full">
-                  <SelectItem value="request">Request</SelectItem>
-                  <SelectItem value="playwright">Playwright</SelectItem>
-                  <SelectItem value="crawlee">Crawlee</SelectItem>
-                </SelectContent>
-              </Select>
+          <div class="space-y-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-2 w-full">
+              <div class="space-y-1 w-full mb-0 md:mb-4">
+                <Label class="text-xs">Health check mode</Label>
+                <Select v-model="runMode">
+                  <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent class="w-full">
+                    <SelectItem value="request">Request</SelectItem>
+                    <SelectItem value="playwright">Playwright</SelectItem>
+                    <SelectItem value="crawlee">Crawlee</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                :disabled="runningAll || lists.length === 0"
+                class="min-w-44"
+                @click="runEnabledSources"
+              >
+                <Icon
+                  :icon="runningAll ? 'lucide:loader-circle' : 'lucide:play-circle'"
+                  class="mr-2 size-4"
+                  :class="runningAll ? 'animate-spin' : ''"
+                />
+                {{ runningAll ? 'Running enabled…' : 'Run enabled sources' }}
+              </Button>
+              <Button variant="outline" as-child>
+                <Link href="/app/scraper/logs">
+                  <Icon icon="lucide:history" class="mr-2 size-4" /> View logs
+                </Link>
+              </Button>
             </div>
-
-            <Button
-              :disabled="runningAll || lists.length === 0"
-              class="min-w-44"
-              @click="runEnabledSources"
-            >
-              <Icon
-                :icon="runningAll ? 'lucide:loader-circle' : 'lucide:play-circle'"
-                class="mr-2 size-4"
-                :class="runningAll ? 'animate-spin' : ''"
-              />
-              {{ runningAll ? 'Running enabled…' : 'Run enabled sources' }}
-            </Button>
-
-            <Button variant="outline" as-child>
-              <Link href="/app/scraper/logs">
-                <Icon icon="lucide:history" class="mr-2 size-4" /> View logs
-              </Link>
-            </Button>
           </div>
         </div>
       </CardHeader>
@@ -294,7 +328,7 @@ function fmtDate(s: string | null) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent class="p-0">
+      <CardContent class="py-0 px-2 space-y-4">
         <Table>
           <TableHeader>
             <TableRow>
@@ -307,12 +341,12 @@ function fmtDate(s: string | null) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-if="recentRuns.length === 0">
+            <TableRow v-if="recentRuns.data.length === 0">
               <TableCell colspan="6" class="py-8 text-center text-muted-foreground">
                 No scraper runs recorded yet.
               </TableCell>
             </TableRow>
-            <TableRow v-for="rn in recentRuns" :key="rn.id">
+            <TableRow v-for="rn in recentRuns.data" :key="rn.id">
               <TableCell>
                 <div class="font-medium">{{ rn.sourceName }}</div>
                 <div class="text-xs text-muted-foreground">
@@ -355,11 +389,48 @@ function fmtDate(s: string | null) {
             </TableRow>
           </TableBody>
         </Table>
+        <div
+          class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex items-center gap-2">
+            <span>Rows per page</span>
+            <Select :model-value="String(recentRuns.perPage)" @update:model-value="changeLimit">
+              <SelectTrigger class="h-8 w-20"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span>{{ firstRow }}-{{ lastRow }} of {{ recentRuns.total }}</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span>Page {{ recentRuns.page }} of {{ recentRuns.lastPage }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="recentRuns.page <= 1"
+              @click="loadPage(recentRuns.page - 1)"
+            >
+              <Icon icon="lucide:chevron-left" class="mr-1 size-4" /> Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="recentRuns.page >= recentRuns.lastPage"
+              @click="loadPage(recentRuns.page + 1)"
+            >
+              Next <Icon icon="lucide:chevron-right" class="ml-1 size-4" />
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
 
-    <p v-if="lists.length === 0" class="text-sm text-muted-foreground">
-      Create a proxy list first (Proxy Lists → New list) to use as a scrape target.
+    <p v-if="recentRuns.data.length === 0" class="text-sm text-muted-foreground">
+      Create a scraper run first.
     </p>
   </AppShell>
 </template>

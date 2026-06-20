@@ -95,7 +95,8 @@ export default class ProxyEntriesController {
     let body: string
     let contentType: string
     if (format === 'csv') {
-      const header = 'host,port,protocol,username,password,country_code,asn_number,status,latency_ms'
+      const header =
+        'host,port,protocol,username,password,country_code,asn_number,status,latency_ms'
       const rows = entries.map((e) =>
         [
           e.host,

@@ -124,6 +124,8 @@ const poolFilter = reactive({
   listId: props.filters.listId ? String(props.filters.listId) : ANY,
 })
 
+const hasFilter = computed(() => poolFilter.listId !== ANY)
+
 const applyPoolFilter = () => {
   router.get('/app', poolFilter.listId === ANY ? {} : { listId: Number(poolFilter.listId) }, {
     preserveScroll: true,
@@ -160,21 +162,21 @@ const refreshWithState = () => {
           </Button>
         </AppTooltip>
         <AppTooltip content="Open scraper" side="bottom">
-          <Button variant="outline" as-child>
+          <Button class="bg-sky-600 dark:bg-sky-500 text-white" as-child>
             <Link href="/app/scraper">
               <Icon icon="material-symbols:cloud-sync-outline-rounded" class="inline size-4" />
             </Link>
           </Button>
         </AppTooltip>
         <AppTooltip content="Open checker" side="bottom">
-          <Button variant="outline" as-child>
+          <Button class="bg-emerald-600 dark:bg-emerald-500 text-white" as-child>
             <Link href="/app/tools">
               <Icon icon="material-symbols:check-circle-unread-outline" class="inline size-4" />
             </Link>
           </Button>
         </AppTooltip>
         <AppTooltip content="Open analytics" side="bottom">
-          <Button variant="outline" as-child>
+          <Button class="bg-violet-600 dark:bg-violet-500 text-white" as-child>
             <Link href="/app/analytics">
               <Icon icon="material-symbols:analytics-outline" class="inline size-4" />
             </Link>
@@ -186,7 +188,7 @@ const refreshWithState = () => {
       <div
         class="rounded-3xl border border-border/70 bg-linear-to-br from-cyan-500/10 via-background to-violet-500/10 p-6"
       >
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div class="flex flex-col gap-4">
           <div class="max-w-3xl">
             <p class="text-xs uppercase tracking-[0.28em] text-muted-foreground">
               Residential Proxy Control Center
@@ -210,10 +212,10 @@ const refreshWithState = () => {
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Pool Filter</p>
             <div class="mt-3 flex flex-col gap-3">
               <Select v-model="poolFilter.listId">
-                <SelectTrigger>
+                <SelectTrigger class="w-full">
                   <SelectValue placeholder="Semua pool" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent class="w-full">
                   <SelectItem :value="ANY">Semua pool</SelectItem>
                   <SelectItem
                     v-for="pool in props.filters.availablePools"
@@ -224,15 +226,16 @@ const refreshWithState = () => {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <div class="flex gap-2">
-                <Button variant="secondary" @click="applyPoolFilter">
-                  <Icon icon="lucide:filter" class="mr-2 size-4" /> Apply
+              <div class="flex gap-2 justify-end">
+                <Button variant="default" @click="applyPoolFilter">
+                  <Icon icon="lucide:filter" class="size-4" /> Apply
                 </Button>
                 <Button
-                  v-if="poolFilter.listId !== ANY"
-                  variant="outline"
+                  v-if="hasFilter"
+                  variant="destructive"
                   @click="((poolFilter.listId = ANY), applyPoolFilter())"
                 >
+                  <Icon icon="lucide:refresh-ccw" class="size-4" />
                   Reset
                 </Button>
               </div>
