@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 
@@ -17,21 +18,41 @@ func (a *OpenproxyListAdapter) Name() string { return "openproxy-list" }
 
 func (a *OpenproxyListAdapter) Scrape() ([]ProxyEntry, error) {
 	sources := []struct {
-		url      string
+		urls     []string
 		protocol string
 	}{
-		{url: "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS.txt", protocol: "https"},
-		{url: "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4.txt", protocol: "socks5"},
-		{url: "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5.txt", protocol: "socks5"},
+		{
+			urls: []string{
+				"https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS.txt",
+				"https://cdn.jsdelivr.net/gh/roosterkid/openproxylist@main/HTTPS.txt",
+			},
+			protocol: "https",
+		},
+		{
+			urls: []string{
+				"https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS4.txt",
+				"https://cdn.jsdelivr.net/gh/roosterkid/openproxylist@main/SOCKS4.txt",
+			},
+			protocol: "socks5",
+		},
+		{
+			urls: []string{
+				"https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5.txt",
+				"https://cdn.jsdelivr.net/gh/roosterkid/openproxylist@main/SOCKS5.txt",
+			},
+			protocol: "socks5",
+		},
 	}
 
 	seen := map[string]bool{}
 	var out []ProxyEntry
+	var failures []string
 
 	for _, source := range sources {
-		body, err := httpGet(source.url)
+		body, err := httpGetAny(source.urls...)
 		if err != nil {
-			return nil, err
+			failures = append(failures, err.Error())
+			continue
 		}
 
 		for _, entry := range parseOpenproxyListRaw(body, source.protocol) {
@@ -44,6 +65,9 @@ func (a *OpenproxyListAdapter) Scrape() ([]ProxyEntry, error) {
 		}
 	}
 
+	if len(out) == 0 && len(failures) > 0 {
+		return nil, errors.New(strings.Join(failures, "; "))
+	}
 	return out, nil
 }
 

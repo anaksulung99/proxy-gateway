@@ -1,7 +1,10 @@
 package adapters
 
 import (
+	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -20,24 +23,153 @@ var (
 	cc2Re    = regexp.MustCompile(`^[A-Z]{2}$`)
 )
 
-// httpGet fetches a URL with a browser-like User-Agent and a size cap.
-func httpGet(url string) (string, error) {
-	client := &http.Client{Timeout: httpTimeout}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/json,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+type httpRequestConfig struct {
+	Method  string
+	Body    string
+	Headers map[string]string
+}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
+var defaultRequestHeaders = map[string]string{
+	"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+	"Accept":          "text/html,application/xhtml+xml,application/json,*/*;q=0.8",
+	"Accept-Language": "en-US,en;q=0.9",
+}
+
+// httpGet fetches a URL with browser-like defaults, retry, and fallback support.
+func httpGet(url string) (string, error) {
+	return httpFetchWithFallback([]string{url}, httpRequestConfig{Method: http.MethodGet})
+}
+
+func httpGetAny(urls ...string) (string, error) {
+	return httpFetchWithFallback(urls, httpRequestConfig{Method: http.MethodGet})
+}
+
+func httpDo(url string, cfg httpRequestConfig) (string, error) {
+	return httpFetchWithFallback([]string{url}, cfg)
+}
+
+func httpFetchWithFallback(urls []string, cfg httpRequestConfig) (string, error) {
+	if len(urls) == 0 {
+		return "", errors.New("no urls provided")
 	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	return string(b), nil
+	if cfg.Method == "" {
+		cfg.Method = http.MethodGet
+	}
+
+	client := &http.Client{Timeout: httpTimeout}
+	attempts := envInt("SCRAPER_HTTP_RETRY_ATTEMPTS", 3)
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	var failureMessages []string
+
+	for _, targetURL := range urls {
+		targetURL = strings.TrimSpace(targetURL)
+		if targetURL == "" {
+			continue
+		}
+
+		for attempt := 1; attempt <= attempts; attempt++ {
+			bodyReader := io.Reader(nil)
+			if cfg.Body != "" {
+				bodyReader = strings.NewReader(cfg.Body)
+			}
+
+			req, err := http.NewRequest(cfg.Method, targetURL, bodyReader)
+			if err != nil {
+				failureMessages = append(failureMessages, fmt.Sprintf("%s build request: %v", targetURL, err))
+				break
+			}
+
+			for key, value := range defaultRequestHeaders {
+				req.Header.Set(key, value)
+			}
+			for key, value := range cfg.Headers {
+				req.Header.Set(key, value)
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				if attempt < attempts && isRetryableTransportError(err) {
+					time.Sleep(retryDelay(attempt, 0))
+					continue
+				}
+				failureMessages = append(failureMessages, fmt.Sprintf("%s attempt %d: %v", targetURL, attempt, err))
+				break
+			}
+
+			bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+			_ = resp.Body.Close()
+			if readErr != nil {
+				if attempt < attempts {
+					time.Sleep(retryDelay(attempt, 0))
+					continue
+				}
+				failureMessages = append(failureMessages, fmt.Sprintf("%s attempt %d: read body: %v", targetURL, attempt, readErr))
+				break
+			}
+
+			if resp.StatusCode >= 400 {
+				if attempt < attempts && shouldRetryHTTPStatus(resp.StatusCode) {
+					time.Sleep(retryDelay(attempt, retryAfterDelay(resp.Header.Get("Retry-After"))))
+					continue
+				}
+				failureMessages = append(failureMessages, fmt.Sprintf("%s attempt %d: http %d", targetURL, attempt, resp.StatusCode))
+				break
+			}
+
+			return string(bodyBytes), nil
+		}
+	}
+
+	if len(failureMessages) == 0 {
+		return "", errors.New("all fetch attempts failed")
+	}
+	return "", errors.New(strings.Join(failureMessages, "; "))
+}
+
+func shouldRetryHTTPStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusRequestTimeout || status == http.StatusTooEarly || (status >= 500 && status <= 599)
+}
+
+func isRetryableTransportError(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	return errors.Is(err, io.EOF)
+}
+
+func retryDelay(attempt int, retryAfter time.Duration) time.Duration {
+	if retryAfter > 0 {
+		return retryAfter
+	}
+
+	backoff := envInt("SCRAPER_HTTP_RETRY_BACKOFF_MS", 400)
+	if backoff < 0 {
+		backoff = 0
+	}
+	return time.Duration(backoff*attempt) * time.Millisecond
+}
+
+func retryAfterDelay(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+
+	if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
+		return time.Duration(seconds) * time.Second
+	}
+
+	if when, err := http.ParseTime(value); err == nil {
+		delay := time.Until(when)
+		if delay > 0 {
+			return delay
+		}
+	}
+	return 0
 }
 
 func validPort(p string) bool {

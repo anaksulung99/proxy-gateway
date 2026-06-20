@@ -319,6 +319,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['bulk']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'proxy-entries.reCheckBulk': {
+    methods: ["POST"]
+    pattern: '/app/proxy-entries/bulk/recheck'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_entry').recheckBulkValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_entry').recheckBulkValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['reCheckBulk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['reCheckBulk']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'analytics.index': {
     methods: ["GET","HEAD"]
     pattern: '/app/analytics'

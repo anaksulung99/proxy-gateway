@@ -11,6 +11,19 @@ interface List {
   description: string | null
   isActive: boolean
 }
+interface Entry {
+  id: number
+  host: string
+  port: number
+  protocol: string
+  countryCode: string | null
+  asnNumber: number | null
+  status: string
+  latencyMs: number | null
+  returnedIp: string | null
+  lastCheckedAt: string | null
+  source: string
+}
 interface RotationConfig {
   rotationType: string
   protocol: string
@@ -33,7 +46,16 @@ const props = defineProps<{
     description: string
   }
   gateway: { host: string; socksHost: string; username: string; hasActiveKey: boolean }
-  entries: any
+  entries: {
+    data: Entry[]
+    meta: {
+      total: number
+      perPage: number
+      currentPage: number
+      lastPage: number
+      firstPage: number
+    }
+  }
   filters: any
   stats: { total: number; healthy: number; unhealthy: number; timeout: number; unknown: number }
 }>()
@@ -79,16 +101,23 @@ const { enabled: live, isFetching } = usePolling(['entries', 'stats'], {
         >
           <span
             class="size-2 rounded-full"
-            :class="live ? (isFetching ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500') : 'bg-muted-foreground/40'"
+            :class="
+              live
+                ? isFetching
+                  ? 'bg-emerald-500 animate-ping'
+                  : 'bg-emerald-500'
+                : 'bg-muted-foreground/40'
+            "
           />
           {{ live ? 'Live' : 'Paused' }}
         </button>
         <AppTooltip content="Edit list" side="bottom">
-          <Button variant="outline" size="sm" @click="showEdit = true">
-            <Icon icon="lucide:pencil-line" class="mr-1 size-4" />
+          <Button class="bg-blue-600 dark:blue-600 text-white" size="sm" @click="showEdit = true">
+            <Icon icon="lucide:pencil-line" class="size-4" />
             <span class="hidden md:block">Edit list</span>
           </Button>
         </AppTooltip>
+        <ReCheckDialog :list-id="props.list.id" />
         <ImportWizard :list-id="props.list.id" />
       </div>
     </template>

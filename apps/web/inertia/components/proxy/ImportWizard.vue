@@ -25,8 +25,8 @@ function submit() {
   <Dialog v-model:open="open">
     <DialogTrigger as-child>
       <AppTooltip content="Import proxies" side="bottom">
-        <Button size="sm">
-          <Icon icon="lucide:upload" class="mr-1 size-4" />
+        <Button size="sm" @click="open = true">
+          <Icon icon="lucide:upload" class="size-4" />
           <span class="hidden md:block">Import proxies</span>
         </Button>
       </AppTooltip>

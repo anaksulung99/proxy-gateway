@@ -48,6 +48,15 @@ const allOnPageSelected = computed(
   () => props.entries.data.length > 0 && props.entries.data.every((e) => selected.value.has(e.id))
 )
 
+const firstRow = computed(() =>
+  props.entries.meta.total === 0
+    ? 0
+    : (props.entries.meta.currentPage - 1) * props.entries.meta.perPage + 1
+)
+const lastRow = computed(() =>
+  Math.min(props.entries.meta.currentPage * props.entries.meta.perPage, props.entries.meta.total)
+)
+
 function toggleAll(value: boolean | 'indeterminate') {
   if (value === true) props.entries.data.forEach((e) => selected.value.add(e.id))
   else props.entries.data.forEach((e) => selected.value.delete(e.id))
@@ -68,8 +77,8 @@ function buildQuery(extra: Record<string, any> = {}) {
   return { ...q, ...extra }
 }
 
-function applyFilters() {
-  router.get(`/app/proxy-lists/${props.listId}`, buildQuery(), {
+function applyFilters(page: number, perPage = props.entries.meta.perPage) {
+  router.get(`/app/proxy-lists/${props.listId}`, buildQuery({ page, perPage }), {
     preserveState: true,
     preserveScroll: true,
   })
@@ -108,6 +117,11 @@ const exportUrl = computed(() => {
   const q = new URLSearchParams(buildQuery({ format: 'txt', creds: '1' }) as any).toString()
   return `/app/proxy-lists/${props.listId}/export?${q}`
 })
+
+function changeLimit(value: unknown) {
+  const perPage = Number(value)
+  applyFilters(1, perPage)
+}
 </script>
 
 <template>
@@ -170,22 +184,34 @@ const exportUrl = computed(() => {
     </div>
 
     <!-- Bulk bar -->
-    <div
-      v-if="selected.size > 0"
-      class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
-    >
-      <span>{{ selected.size }} selected</span>
-      <Button variant="outline" size="sm" @click="bulk('recheck')">
-        <Icon icon="lucide:refresh-cw" class="mr-1 size-3.5" /> Re-check
-      </Button>
-      <Button variant="destructive" size="sm" @click="bulk('delete')">
-        <Icon icon="lucide:trash-2" class="mr-1 size-3.5" /> Delete
-      </Button>
-    </div>
 
     <!-- Table -->
     <Card>
-      <CardContent class="p-0">
+      <CardHeader class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Proxy List</CardTitle>
+          <CardDescription>
+            Kelola daftar proxy berdasarkan pool, kebijakan rotasi, dan health status.
+          </CardDescription>
+        </div>
+        <div
+          v-if="selected.size > 0"
+          class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+        >
+          <span>{{ selected.size }} selected</span>
+          <Button
+            class="bg-emerald-600 hover:bg-emerald-700 text-white"
+            size="sm"
+            @click="bulk('recheck')"
+          >
+            <Icon icon="lucide:refresh-cw" class="size-3.5" /> Re-check
+          </Button>
+          <Button variant="destructive" size="sm" @click="bulk('delete')">
+            <Icon icon="lucide:trash-2" class="mr-1 size-3.5" /> Delete
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent class="p-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -228,19 +254,31 @@ const exportUrl = computed(() => {
     </Card>
 
     <!-- Pagination -->
-    <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <span
-        >{{ entries.meta.total }} total · page {{ entries.meta.currentPage }} /
-        {{ entries.meta.lastPage }}</span
-      >
-      <div class="flex gap-1">
+    <div
+      class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="flex items-center gap-2">
+        <span>Rows per page</span>
+        <Select :model-value="String(entries.meta.perPage)" @update:model-value="changeLimit">
+          <SelectTrigger class="h-8 w-20"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">10</SelectItem>
+            <SelectItem value="25">25</SelectItem>
+            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="100">100</SelectItem>
+          </SelectContent>
+        </Select>
+        <span>{{ firstRow }}-{{ lastRow }} of {{ entries.meta.total }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span>Page {{ entries.meta.currentPage }} of {{ entries.meta.lastPage }}</span>
         <Button
           variant="outline"
           size="sm"
           :disabled="entries.meta.currentPage <= 1"
           @click="goPage(entries.meta.currentPage - 1)"
         >
-          Prev
+          <Icon icon="lucide:chevron-left" class="size-4" /> Prev
         </Button>
         <Button
           variant="outline"
@@ -248,7 +286,7 @@ const exportUrl = computed(() => {
           :disabled="entries.meta.currentPage >= entries.meta.lastPage"
           @click="goPage(entries.meta.currentPage + 1)"
         >
-          Next
+          Next <Icon icon="lucide:chevron-right" class="size-4" />
         </Button>
       </div>
     </div>

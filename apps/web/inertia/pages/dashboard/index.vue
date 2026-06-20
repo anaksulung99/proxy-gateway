@@ -8,7 +8,7 @@ import { usePolling } from '~/composables/usePolling'
 const ANY = '__all__'
 
 // Live KPIs — silent background refresh (pauses when tab hidden).
-usePolling(['stats', 'alerts'], { interval: 8000 })
+usePolling(['stats', 'alerts', 'scraperHealth'], { interval: 8000 })
 
 function fmtBytes(value: number) {
   if (value < 1024) return `${value} B`
@@ -72,6 +72,43 @@ const props = defineProps<{
     | {
         ok: false
         configured: boolean
+        error: string
+      }
+  scraperHealth:
+    | {
+        ok: true
+        generatedAt: string
+        overview: {
+          total: number
+          idle: number
+          healthy: number
+          degraded: number
+          error: number
+          misconfigured: number
+        }
+        attentionSources: Array<{
+          source: string
+          status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+          lastResult: string
+          lastRunAt: string | null
+          lastSuccessAt: string | null
+          lastDurationMs: number
+          lastEntries: number
+          consecutiveFailures: number
+          logsHref: string
+          triggers: Array<{
+            trigger: string
+            status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+            totalRuns: number
+            successfulRuns: number
+            errorRuns: number
+            consecutiveFailures: number
+            lastRunAt: string | null
+          }>
+        }>
+      }
+    | {
+        ok: false
         error: string
       }
   traffic: {
@@ -322,6 +359,138 @@ const refreshWithState = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card class="border-border/70">
+        <CardHeader>
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Scraper Source Health</CardTitle>
+              <CardDescription>
+                Ringkasan status adapter scraper dari endpoint `/source-health`.
+              </CardDescription>
+            </div>
+            <Button variant="outline" as-child>
+              <Link href="/app/scraper">Open scraper</Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent v-if="scraperHealth.ok" class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-xl border bg-card/70 p-4">
+              <p class="text-xs text-muted-foreground">Registered Sources</p>
+              <p class="mt-2 text-2xl font-semibold">{{ scraperHealth.overview.total }}</p>
+              <p class="mt-1 text-xs text-muted-foreground">Snapshot service scraper terbaru</p>
+            </div>
+            <div class="rounded-xl border bg-card/70 p-4">
+              <p class="text-xs text-muted-foreground">Healthy</p>
+              <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                {{ scraperHealth.overview.healthy }}
+              </p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{ scraperHealth.overview.idle }} idle source
+              </p>
+            </div>
+            <div class="rounded-xl border bg-card/70 p-4">
+              <p class="text-xs text-muted-foreground">Need Attention</p>
+              <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                {{
+                  scraperHealth.overview.degraded +
+                  scraperHealth.overview.error +
+                  scraperHealth.overview.misconfigured
+                }}
+              </p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{ scraperHealth.overview.degraded }} degraded ·
+                {{ scraperHealth.overview.error }} error ·
+                {{ scraperHealth.overview.misconfigured }} misconfigured
+              </p>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border bg-card/70 p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium">Priority Sources</p>
+                <p class="text-xs text-muted-foreground">
+                  Source dengan status non-healthy yang paling butuh tindak lanjut.
+                </p>
+              </div>
+              <Badge variant="outline">
+                Updated {{ new Date(scraperHealth.generatedAt).toLocaleString() }}
+              </Badge>
+            </div>
+
+            <div v-if="scraperHealth.attentionSources.length" class="mt-4 space-y-3">
+              <div
+                v-for="source in scraperHealth.attentionSources"
+                :key="source.source"
+                class="rounded-xl border p-3"
+              >
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold">{{ source.source }}</p>
+                    <p class="text-xs text-muted-foreground">
+                      Last result: {{ source.lastResult || source.status }}
+                    </p>
+                  </div>
+                  <Badge
+                    :variant="
+                      source.status === 'misconfigured' || source.status === 'error'
+                        ? 'destructive'
+                        : 'secondary'
+                    "
+                  >
+                    {{ source.status }}
+                  </Badge>
+                </div>
+                <p class="mt-2 text-xs text-muted-foreground">
+                  {{ source.lastEntries }} entries · {{ source.lastDurationMs }} ms ·
+                  {{ source.consecutiveFailures }} consecutive failures
+                </p>
+                <div v-if="source.triggers.length" class="mt-3 flex flex-wrap gap-2">
+                  <Badge
+                    v-for="trigger in source.triggers"
+                    :key="`${source.source}-${trigger.trigger}`"
+                    :variant="
+                      trigger.status === 'misconfigured' || trigger.status === 'error'
+                        ? 'destructive'
+                        : trigger.status === 'degraded'
+                          ? 'secondary'
+                          : 'outline'
+                    "
+                    class="inline-flex items-center gap-2"
+                  >
+                    <span class="font-medium uppercase">{{ trigger.trigger }}</span>
+                    <span class="text-muted-foreground">
+                      {{ trigger.status }} · {{ trigger.totalRuns }} runs
+                    </span>
+                  </Badge>
+                </div>
+                <div class="mt-3">
+                  <Button variant="outline" size="sm" as-child>
+                    <Link :href="source.logsHref">Open filtered logs</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p class="font-medium text-emerald-700 dark:text-emerald-300">
+                Semua source scraper berada pada status healthy atau idle.
+              </p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Belum ada source error, degraded, atau misconfigured pada snapshot terbaru.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+        <CardContent v-else>
+          <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <p class="font-medium">Scraper source-health belum tersedia</p>
+            <p class="mt-1 text-sm text-muted-foreground">{{ scraperHealth.error }}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card class="border-border/70">
         <CardHeader>

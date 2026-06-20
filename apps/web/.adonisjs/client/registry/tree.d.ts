@@ -39,6 +39,7 @@ export interface ApiDefinition {
   }
   proxyEntries: {
     bulk: typeof routes['proxy-entries.bulk']
+    reCheckBulk: typeof routes['proxy-entries.reCheckBulk']
   }
   analytics: {
     index: typeof routes['analytics.index']

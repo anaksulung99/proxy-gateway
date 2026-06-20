@@ -22,8 +22,6 @@ export function usePolling(
       isFetching.value = true
       router.reload({
         only,
-        preserveState: true,
-        preserveScroll: true,
         onFinish: () => {
           isFetching.value = false
         },

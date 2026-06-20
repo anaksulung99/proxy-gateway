@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import db from '@adonisjs/lucid/services/db'
 import ProxyList from '#models/proxy_list'
 import ScraperSource from '#models/scraper_source'
@@ -5,6 +6,7 @@ import ScraperRun from '#models/scraper_run'
 import HealthCheckRun from '#models/health_check_run'
 import rotationService from '#services/proxy_rotation_service'
 import scraperPipeline from '#services/scraper_pipeline_service'
+import scraperClient from '#services/scraper_client_service'
 import healthClient from '#services/health_check_client_service'
 import proxyEngineClient from '#services/proxy_engine_client_service'
 import { DateTime } from 'luxon'
@@ -48,11 +50,11 @@ export default class DashboardController {
 
     const perListRows = listIds.length
       ? await db
-          .from('proxy_entries')
-          .whereIn('proxy_list_id', listIds)
-          .select('proxy_list_id', 'status')
-          .count('* as c')
-          .groupBy('proxy_list_id', 'status')
+        .from('proxy_entries')
+        .whereIn('proxy_list_id', listIds)
+        .select('proxy_list_id', 'status')
+        .count('* as c')
+        .groupBy('proxy_list_id', 'status')
       : []
 
     const perListStatus = new Map<
@@ -83,6 +85,7 @@ export default class DashboardController {
       healthRuns24h,
       healthErrors24h,
       proxyEngineRuntime,
+      scraperHealthSnapshot,
       usageOverviewRows,
       usageTopTargetRow,
       usageTopPoolRow,
@@ -109,6 +112,7 @@ export default class DashboardController {
         .where('started_at', '>=', last24h.toSQL()!)
         .where('status', 'error'),
       proxyEngineClient.fetchRuntimeStatus(),
+      scraperClient.fetchSourceHealth(),
       db
         .from('proxy_usage_logs')
         .where('team_id', team.id)
@@ -160,6 +164,53 @@ export default class DashboardController {
     const usageFailed24h = Number(usageOverview?.failed_requests ?? 0)
     const usageSuccessRate24h =
       usageRequests24h > 0 ? Math.round((usageSuccessful24h / usageRequests24h) * 100) : 0
+    const scraperHealth = scraperHealthSnapshot.ok
+      ? {
+          ok: true as const,
+          generatedAt: scraperHealthSnapshot.summary.generatedAt,
+          overview: scraperHealthSnapshot.summary.overview,
+          attentionSources: scraperHealthSnapshot.summary.sources
+            .filter((source) => source.status !== 'healthy' && source.status !== 'idle')
+            .sort((a, b) => {
+              const severity = {
+                misconfigured: 0,
+                error: 1,
+                degraded: 2,
+                idle: 3,
+                healthy: 4,
+              }
+              const severityDiff =
+                severity[a.status as keyof typeof severity] -
+                severity[b.status as keyof typeof severity]
+              if (severityDiff !== 0) return severityDiff
+              return b.consecutiveFailures - a.consecutiveFailures
+            })
+            .slice(0, 5)
+            .map((source) => ({
+              source: source.source,
+              status: source.status,
+              lastResult: source.lastResult,
+              lastRunAt: source.lastRunAt,
+              lastSuccessAt: source.lastSuccessAt,
+              lastDurationMs: source.lastDurationMs,
+              lastEntries: source.lastEntries,
+              consecutiveFailures: source.consecutiveFailures,
+              logsHref: `/app/scraper/logs?${new URLSearchParams({ sourceKey: source.source }).toString()}`,
+              triggers: source.triggers.map((trigger) => ({
+                trigger: trigger.trigger,
+                status: trigger.status,
+                totalRuns: trigger.totalRuns,
+                successfulRuns: trigger.successfulRuns,
+                errorRuns: trigger.errorRuns,
+                consecutiveFailures: trigger.consecutiveFailures,
+                lastRunAt: trigger.lastRunAt,
+              })),
+            })),
+        }
+      : {
+          ok: false as const,
+          error: scraperHealthSnapshot.error,
+        }
 
     const pools = proxyLists
       .map((list) => {
@@ -245,6 +296,33 @@ export default class DashboardController {
         href: '/app/settings/team',
       })
     }
+    if (scraperHealth.ok && scraperHealth.overview.misconfigured > 0) {
+      alerts.push({
+        title: `${scraperHealth.overview.misconfigured} source scraper misconfigured`,
+        detail:
+          'Ada source yang terdaftar di service scraper tetapi adapter atau konfigurasi trigger-nya bermasalah.',
+        tone: 'critical',
+        href: '/app/scraper',
+      })
+    } else if (
+      scraperHealth.ok &&
+      (scraperHealth.overview.error > 0 || scraperHealth.overview.degraded > 0)
+    ) {
+      alerts.push({
+        title: `${scraperHealth.overview.error + scraperHealth.overview.degraded} source scraper perlu perhatian`,
+        detail:
+          'Periksa source-health scraper untuk melihat source yang error, degraded, atau sering gagal beruntun.',
+        tone: scraperHealth.overview.error > 0 ? 'critical' : 'warning',
+        href: '/app/scraper',
+      })
+    } else if (!scraperHealth.ok) {
+      alerts.push({
+        title: 'Scraper source-health belum terhubung',
+        detail: scraperHealth.error,
+        tone: 'warning',
+        href: '/app/scraper',
+      })
+    }
 
     return inertia.render('dashboard/index', {
       stats: {
@@ -276,6 +354,7 @@ export default class DashboardController {
       },
       alerts,
       engine: proxyEngineRuntime,
+      scraperHealth,
       traffic: {
         avgDurationMs24h: Math.round(Number(usageOverview?.avg_duration_ms ?? 0)),
         totalResponseBytes24h: Number(usageOverview?.total_response_bytes ?? 0),

@@ -264,6 +264,7 @@ declare module 'vue' {
     RangeCalendarHeading: typeof import('./components/ui/range-calendar/RangeCalendarHeading.vue')['default']
     RangeCalendarNextButton: typeof import('./components/ui/range-calendar/RangeCalendarNextButton.vue')['default']
     RangeCalendarPrevButton: typeof import('./components/ui/range-calendar/RangeCalendarPrevButton.vue')['default']
+    ReCheckDialog: typeof import('./components/proxy/ReCheckDialog.vue')['default']
     ResizableHandle: typeof import('./components/ui/resizable/ResizableHandle.vue')['default']
     ResizablePanel: typeof import('./components/ui/resizable/ResizablePanel.vue')['default']
     ResizablePanelGroup: typeof import('./components/ui/resizable/ResizablePanelGroup.vue')['default']

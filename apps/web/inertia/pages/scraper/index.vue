@@ -16,6 +16,25 @@ interface Source {
   lastCount: number
   lastRunAt: string | null
   availability: 'available' | 'unreachable'
+  logsHref: string
+  health: null | {
+    status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+    lastResult: string
+    lastRunAt: string | null
+    lastSuccessAt: string | null
+    lastDurationMs: number
+    lastEntries: number
+    consecutiveFailures: number
+    triggers: Array<{
+      trigger: string
+      status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+      totalRuns: number
+      successfulRuns: number
+      errorRuns: number
+      consecutiveFailures: number
+      lastRunAt: string | null
+    }>
+  }
 }
 
 interface RecentRun {
@@ -52,14 +71,38 @@ const props = defineProps<{
     configuredSources: number
     availableSources: number
   }
+  filters: {
+    healthStatus: string | null
+  }
+  sourceHealth:
+    | {
+        ok: true
+        generatedAt: string
+        overview: {
+          total: number
+          idle: number
+          healthy: number
+          degraded: number
+          error: number
+          misconfigured: number
+        }
+      }
+    | {
+        ok: false
+        error: string
+      }
   recentRuns: RecentRuns
 }>()
 
 const NONE = '__none__'
+const ANY = '__all__'
 const running = ref<Set<number>>(new Set())
 const runningAll = ref(false)
 const runMode = ref<'request' | 'playwright' | 'crawlee'>('request')
 const scheduleDrafts = reactive<Record<number, string>>({})
+const filterState = reactive({
+  healthStatus: props.filters.healthStatus ?? ANY,
+})
 const page = usePage<{
   flash?: {
     scraperRunSummary?: any
@@ -79,7 +122,7 @@ const anyRunning = computed(
     running.value.size > 0 ||
     props.recentRuns.data.some((r) => r.status === 'running')
 )
-const { enabled: livePolling } = usePolling(['sources', 'overview', 'recentRuns'], {
+const { enabled: livePolling } = usePolling(['sources', 'overview', 'sourceHealth', 'recentRuns'], {
   interval: 4000,
   enabled: anyRunning.value,
 })
@@ -98,6 +141,7 @@ function loadPage(currentPage: number, perPage = props.recentRuns.perPage) {
     {
       page: currentPage,
       perPage,
+      ...(filterState.healthStatus !== ANY ? { healthStatus: filterState.healthStatus } : {}),
     },
     {
       preserveState: true,
@@ -161,9 +205,34 @@ function changeLimit(value: unknown) {
   loadPage(1, perPage)
 }
 
+function applyHealthFilter() {
+  loadPage(1)
+}
+
+function clearHealthFilter() {
+  filterState.healthStatus = ANY
+  loadPage(1)
+}
+
 function fmtDate(s: string | null) {
   if (!s) return 'never'
   return new Date(s).toLocaleString()
+}
+
+function relativeAge(value: string | null) {
+  if (!value) return 'never'
+
+  const diffMs = Date.now() - new Date(value).getTime()
+  if (!Number.isFinite(diffMs) || diffMs < 0) return 'just now'
+
+  const minute = 60_000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (diffMs < minute) return 'just now'
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`
+  return `${Math.floor(diffMs / day)}d ago`
 }
 </script>
 
@@ -196,6 +265,92 @@ function fmtDate(s: string | null) {
         </CardHeader>
       </Card>
     </div>
+
+    <Card class="border-border/70">
+      <CardHeader class="pb-3">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle class="text-base">Source Filters</CardTitle>
+            <CardDescription>
+              Filter daftar source berdasarkan status health terbaru.
+            </CardDescription>
+          </div>
+          <div class="flex items-center gap-2">
+            <Select v-model="filterState.healthStatus">
+              <SelectTrigger class="w-48"><SelectValue placeholder="All health states" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="ANY">All health states</SelectItem>
+                <SelectItem value="healthy">Healthy</SelectItem>
+                <SelectItem value="degraded">Degraded</SelectItem>
+                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="misconfigured">Misconfigured</SelectItem>
+                <SelectItem value="idle">Idle</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" @click="applyHealthFilter">
+              <Icon icon="lucide:filter" class="mr-2 size-4" /> Apply
+            </Button>
+            <Button
+              v-if="filterState.healthStatus !== ANY"
+              variant="outline"
+              size="sm"
+              @click="clearHealthFilter"
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
+
+    <Card class="border-border/70">
+      <CardHeader class="pb-3">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle class="text-base">Source Health Snapshot</CardTitle>
+            <CardDescription>
+              Status adapter scraper terbaru dari endpoint internal source-health.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" as-child>
+            <Link href="/app/scraper/logs">Open logs</Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent v-if="sourceHealth.ok" class="grid gap-3 md:grid-cols-4">
+        <div class="rounded-xl border bg-card/70 p-4">
+          <p class="text-xs text-muted-foreground">Healthy</p>
+          <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+            {{ sourceHealth.overview.healthy }}
+          </p>
+        </div>
+        <div class="rounded-xl border bg-card/70 p-4">
+          <p class="text-xs text-muted-foreground">Degraded</p>
+          <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+            {{ sourceHealth.overview.degraded }}
+          </p>
+        </div>
+        <div class="rounded-xl border bg-card/70 p-4">
+          <p class="text-xs text-muted-foreground">Error</p>
+          <p class="mt-2 text-2xl font-semibold text-red-600 dark:text-red-400">
+            {{ sourceHealth.overview.error + sourceHealth.overview.misconfigured }}
+          </p>
+        </div>
+        <div class="rounded-xl border bg-card/70 p-4">
+          <p class="text-xs text-muted-foreground">Idle</p>
+          <p class="mt-2 text-2xl font-semibold">{{ sourceHealth.overview.idle }}</p>
+          <p class="mt-1 text-xs text-muted-foreground">
+            Updated {{ fmtDate(sourceHealth.generatedAt) }}
+          </p>
+        </div>
+      </CardContent>
+      <CardContent v-else>
+        <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <p class="font-medium">Source-health scraper belum tersedia</p>
+          <p class="mt-1 text-sm text-muted-foreground">{{ sourceHealth.error }}</p>
+        </div>
+      </CardContent>
+    </Card>
 
     <ScraperRunSummaryCard :summary="scraperRunSummary" />
 
@@ -251,6 +406,8 @@ function fmtDate(s: string | null) {
             <TableRow>
               <TableHead class="px-4 py-3 font-medium">Source</TableHead>
               <TableHead class="px-4 py-3 font-medium">Availability</TableHead>
+              <TableHead class="px-4 py-3 font-medium">Health</TableHead>
+              <TableHead class="px-4 py-3 font-medium">Reliability</TableHead>
               <TableHead class="px-4 py-3 font-medium">Enabled</TableHead>
               <TableHead class="px-4 py-3 font-medium">Target list</TableHead>
               <TableHead class="px-4 py-3 font-medium">Schedule</TableHead>
@@ -269,6 +426,64 @@ function fmtDate(s: string | null) {
                 <Badge :variant="s.availability === 'available' ? 'default' : 'secondary'">
                   {{ s.availability === 'available' ? 'Reachable' : 'Unavailable' }}
                 </Badge>
+              </TableCell>
+              <TableCell class="min-w-56">
+                <div v-if="s.health" class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <Badge
+                      :variant="
+                        s.health.status === 'misconfigured' || s.health.status === 'error'
+                          ? 'destructive'
+                          : s.health.status === 'degraded'
+                            ? 'secondary'
+                            : 'outline'
+                      "
+                    >
+                      {{ s.health.status }}
+                    </Badge>
+                    <span class="text-xs text-muted-foreground">
+                      {{ s.health.lastEntries }} entries · {{ s.health.lastDurationMs }} ms
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <Badge
+                      v-for="trigger in s.health.triggers"
+                      :key="`${s.id}-${trigger.trigger}`"
+                      variant="outline"
+                      class="uppercase"
+                    >
+                      {{ trigger.trigger }} · {{ trigger.status }}
+                    </Badge>
+                  </div>
+                </div>
+                <span v-else class="text-xs text-muted-foreground">No source-health data yet</span>
+              </TableCell>
+              <TableCell class="min-w-48">
+                <div v-if="s.health" class="space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    Last success:
+                    <span class="font-medium text-foreground">{{ fmtDate(s.health.lastSuccessAt) }}</span>
+                  </div>
+                  <div>
+                    <Badge
+                      :variant="
+                        s.health.lastSuccessAt === null
+                          ? 'destructive'
+                          : s.health.consecutiveFailures >= 3
+                            ? 'secondary'
+                            : 'outline'
+                      "
+                      class="mt-1"
+                    >
+                      {{ relativeAge(s.health.lastSuccessAt) }}
+                    </Badge>
+                  </div>
+                  <div>
+                    Consecutive failures:
+                    <span class="font-medium text-foreground">{{ s.health.consecutiveFailures }}</span>
+                  </div>
+                </div>
+                <span v-else class="text-xs text-muted-foreground">No reliability data yet</span>
               </TableCell>
               <TableCell>
                 <Switch
@@ -309,18 +524,23 @@ function fmtDate(s: string | null) {
               }}</TableCell>
               <TableCell>{{ s.lastCount }}</TableCell>
               <TableCell class="text-right">
-                <Button
-                  size="sm"
-                  :disabled="!s.proxyListId || running.has(s.id) || runningAll"
-                  @click="run(s)"
-                >
-                  <Icon
-                    :icon="running.has(s.id) ? 'lucide:loader-circle' : 'lucide:play'"
-                    class="mr-1 size-4"
-                    :class="running.has(s.id) ? 'animate-spin' : ''"
-                  />
-                  {{ running.has(s.id) ? 'Scraping…' : 'Run' }}
-                </Button>
+                <div class="flex items-center justify-end gap-2">
+                  <Button variant="outline" size="sm" as-child>
+                    <Link :href="s.logsHref">Logs</Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    :disabled="!s.proxyListId || running.has(s.id) || runningAll"
+                    @click="run(s)"
+                  >
+                    <Icon
+                      :icon="running.has(s.id) ? 'lucide:loader-circle' : 'lucide:play'"
+                      class="mr-1 size-4"
+                      :class="running.has(s.id) ? 'animate-spin' : ''"
+                    />
+                    {{ running.has(s.id) ? 'Scraping…' : 'Run' }}
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>

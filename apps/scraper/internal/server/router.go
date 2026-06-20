@@ -45,6 +45,7 @@ func (s *Server) registerRoutes() {
 	s.app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "service": "scraper"})
 	})
+	s.app.Get("/source-health", s.handleSourceHealth)
 	s.app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 	s.app.Get("/sources", s.handleSources)
 	s.app.Post("/scrape", s.handleScrape)
@@ -57,6 +58,37 @@ func (s *Server) handleSources(c *fiber.Ctx) error {
 	}
 	sort.Strings(keys)
 	return c.JSON(fiber.Map{"sources": keys})
+}
+
+func (s *Server) handleSourceHealth(c *fiber.Ctx) error {
+	keys := make([]string, 0, len(s.adapters))
+	for k := range s.adapters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	sources := metrics.SourceHealthSummary(keys)
+	overview := fiber.Map{
+		"total":         len(sources),
+		"idle":          0,
+		"healthy":       0,
+		"degraded":      0,
+		"error":         0,
+		"misconfigured": 0,
+	}
+
+	for _, source := range sources {
+		if _, ok := overview[source.Status]; ok {
+			overview[source.Status] = overview[source.Status].(int) + 1
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"service":     "scraper",
+		"generatedAt": time.Now().UTC(),
+		"overview":    overview,
+		"sources":     sources,
+	})
 }
 
 type scrapeRequest struct {

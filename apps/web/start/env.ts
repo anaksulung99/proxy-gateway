@@ -65,6 +65,9 @@ export default await Env.create(new URL('../', import.meta.url), {
   PROXY_USAGE_PRUNER_ENABLED: Env.schema.boolean.optional(),
   PROXY_USAGE_PRUNER_TICK_SECONDS: Env.schema.number.optional(),
   PROXY_USAGE_LOG_RETENTION_DAYS: Env.schema.number.optional(),
+  GEO_ENRICHMENT_ENABLED: Env.schema.boolean.optional(),
+  GEO_ENRICHMENT_TICK_SECONDS: Env.schema.number.optional(),
+  GEO_ENRICHMENT_BATCH_LIMIT: Env.schema.number.optional(),
 
   // Proxy engine gateway (shown to users as a connection string)
   GATEWAY_HOST: Env.schema.string.optional(),

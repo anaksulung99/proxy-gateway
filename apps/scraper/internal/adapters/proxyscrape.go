@@ -11,8 +11,10 @@ func NewProxyScrapeAdapter(log zerolog.Logger) Adapter {
 func (a *ProxyscrapeAdapter) Name() string { return "proxyscrape" }
 
 func (a *ProxyscrapeAdapter) Scrape() ([]ProxyEntry, error) {
-	url := "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all"
-	body, err := httpGet(url)
+	body, err := httpGetAny(
+		"https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
+		"https://api.proxyscrape.com/?request=getproxies&proxytype=http&timeout=10000&country=all&ssl=all&anonymity=all",
+	)
 	if err != nil {
 		return nil, err
 	}

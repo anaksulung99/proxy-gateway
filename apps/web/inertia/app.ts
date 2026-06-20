@@ -10,7 +10,7 @@ import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 import Vue3Toastify, { type ToastContainerOptions } from 'vue3-toastify'
 import 'vue3-toastify/dist/index.css'
 
-const appName = import.meta.env.VITE_APP_NAME || 'AdonisJS'
+const appName = import.meta.env.VITE_APP_NAME || 'Residential Proxy'
 
 createInertiaApp({
   title: (title) => (title ? `${title} - ${appName}` : appName),

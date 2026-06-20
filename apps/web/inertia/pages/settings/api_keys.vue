@@ -38,6 +38,13 @@ function fmt(s: string | null) {
   return s ? new Date(s).toLocaleString() : '—'
 }
 
+function parseOptionalNumber(value: string | number) {
+  const normalized = String(value).trim()
+  if (normalized === '') return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 // Team quota
 const teamUsedPct = computed(() => {
   if (!props.team.monthlyQuotaBytes) return 0
@@ -48,6 +55,12 @@ const teamForm = useForm({
     ? +(props.team.monthlyQuotaBytes / (1024 * MB)).toFixed(2)
     : null,
 })
+const teamQuotaInput = computed({
+  get: () => teamForm.monthlyQuotaGb ?? undefined,
+  set: (value: string | number) => {
+    teamForm.monthlyQuotaGb = parseOptionalNumber(value)
+  },
+})
 function saveTeamQuota() {
   teamForm.post('/app/settings/team-quota', { preserveScroll: true })
 }
@@ -55,6 +68,12 @@ function saveTeamQuota() {
 // Create key
 const showCreate = ref(false)
 const form = useForm({ name: '', monthlyQuotaMb: null as number | null })
+const createQuotaInput = computed({
+  get: () => form.monthlyQuotaMb ?? undefined,
+  set: (value: string | number) => {
+    form.monthlyQuotaMb = parseOptionalNumber(value)
+  },
+})
 function submit() {
   form.post('/app/settings/api-keys', {
     preserveScroll: true,
@@ -68,6 +87,12 @@ function submit() {
 // Per-key quota edit
 const quotaKey = ref<ApiKeyRow | null>(null)
 const quotaForm = useForm({ monthlyQuotaMb: null as number | null })
+const editQuotaInput = computed({
+  get: () => quotaForm.monthlyQuotaMb ?? undefined,
+  set: (value: string | number) => {
+    quotaForm.monthlyQuotaMb = parseOptionalNumber(value)
+  },
+})
 function openQuota(k: ApiKeyRow) {
   quotaKey.value = k
   quotaForm.monthlyQuotaMb = k.monthlyQuotaBytes ? Math.round(k.monthlyQuotaBytes / MB) : null
@@ -119,7 +144,13 @@ function copy(value: string, label: string) {
         <div v-if="team.monthlyQuotaBytes" class="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             class="h-full rounded-full transition-all"
-            :class="teamUsedPct >= 100 ? 'bg-red-500' : teamUsedPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'"
+            :class="
+              teamUsedPct >= 100
+                ? 'bg-red-500'
+                : teamUsedPct >= 80
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+            "
             :style="{ width: teamUsedPct + '%' }"
           />
         </div>
@@ -127,7 +158,7 @@ function copy(value: string, label: string) {
           <div class="grid gap-1">
             <Label class="text-xs">Monthly quota (GB, empty = unlimited)</Label>
             <Input
-              v-model="teamForm.monthlyQuotaGb"
+              v-model="teamQuotaInput"
               type="number"
               min="0"
               step="0.5"
@@ -150,8 +181,16 @@ function copy(value: string, label: string) {
       </CardHeader>
       <CardContent>
         <div class="flex items-center gap-1">
-          <code class="flex-1 overflow-x-auto rounded bg-background px-2 py-1.5 font-mono text-xs">{{ newKey.token }}</code>
-          <Button variant="outline" size="icon" class="size-8" @click="copy(newKey.token, 'API key')">
+          <code
+            class="flex-1 overflow-x-auto rounded bg-background px-2 py-1.5 font-mono text-xs"
+            >{{ newKey.token }}</code
+          >
+          <Button
+            variant="outline"
+            size="icon"
+            class="size-8"
+            @click="copy(newKey.token, 'API key')"
+          >
             <Icon icon="lucide:copy" class="size-3.5" />
           </Button>
         </div>
@@ -223,12 +262,23 @@ function copy(value: string, label: string) {
         <div class="grid gap-3 py-2">
           <div class="grid gap-1.5">
             <Label for="key-name">Name</Label>
-            <Input id="key-name" v-model="form.name" placeholder="e.g. scraper-prod" @keyup.enter="submit" />
+            <Input
+              id="key-name"
+              v-model="form.name"
+              placeholder="e.g. scraper-prod"
+              @keyup.enter="submit"
+            />
             <p v-if="form.errors.name" class="text-xs text-red-600">{{ form.errors.name }}</p>
           </div>
           <div class="grid gap-1.5">
             <Label for="key-quota">Monthly quota (MB, empty = unlimited)</Label>
-            <Input id="key-quota" v-model="form.monthlyQuotaMb" type="number" min="0" placeholder="unlimited" />
+            <Input
+              id="key-quota"
+              v-model="createQuotaInput"
+              type="number"
+              min="0"
+              placeholder="unlimited"
+            />
           </div>
         </div>
         <DialogFooter>
@@ -247,7 +297,7 @@ function copy(value: string, label: string) {
         </DialogHeader>
         <div class="grid gap-1.5 py-2">
           <Label>Monthly quota (MB, empty = unlimited)</Label>
-          <Input v-model="quotaForm.monthlyQuotaMb" type="number" min="0" placeholder="unlimited" />
+          <Input v-model="editQuotaInput" type="number" min="0" placeholder="unlimited" />
         </div>
         <DialogFooter>
           <Button variant="outline" @click="quotaKey = null">Cancel</Button>

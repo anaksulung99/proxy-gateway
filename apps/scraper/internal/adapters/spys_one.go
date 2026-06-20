@@ -1,7 +1,6 @@
 package adapters
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -83,28 +82,15 @@ func fetchSpysOneExpanded(initialBody string) (string, error) {
 		"xf5": {"0"},
 	}
 
-	client := &http.Client{Timeout: httpTimeout}
-	req, err := http.NewRequest(http.MethodPost, "https://spys.one/en/free-proxy-list/", strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Referer", "https://spys.one/en/free-proxy-list/")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
-		return "", err
-	}
-	return string(bodyBytes), nil
+	return httpDo("https://spys.one/en/free-proxy-list/", httpRequestConfig{
+		Method: http.MethodPost,
+		Body:   form.Encode(),
+		Headers: map[string]string{
+			"Accept":       "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+			"Content-Type": "application/x-www-form-urlencoded",
+			"Referer":      "https://spys.one/en/free-proxy-list/",
+		},
+	})
 }
 
 func parseSpysOneRow(tr *goquery.Selection) *ProxyEntry {

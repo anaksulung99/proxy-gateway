@@ -30,6 +30,7 @@ export type ScannedRoutes = {
     'proxy-lists.import': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-entries.bulk': { paramsTuple?: []; params?: {} }
+    'proxy-entries.reCheckBulk': { paramsTuple?: []; params?: {} }
     'analytics.index': { paramsTuple?: []; params?: {} }
     'analytics.export': { paramsTuple?: []; params?: {} }
     'analytics.deleteManyPost': { paramsTuple?: []; params?: {} }
@@ -103,6 +104,7 @@ export type ScannedRoutes = {
     'proxy-lists.rotationPost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.import': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-entries.bulk': { paramsTuple?: []; params?: {} }
+    'proxy-entries.reCheckBulk': { paramsTuple?: []; params?: {} }
     'tools.check': { paramsTuple?: []; params?: {} }
     'scraper.updatePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.run': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

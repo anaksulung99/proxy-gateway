@@ -14,6 +14,55 @@ export interface ScrapeResult {
   proxies: ScrapedProxy[]
 }
 
+export interface ScraperSourceHealthTrigger {
+  trigger: string
+  status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+  lastResult: string
+  lastRunAt: string | null
+  lastSuccessAt: string | null
+  lastDurationMs: number
+  lastEntries: number
+  totalRuns: number
+  successfulRuns: number
+  errorRuns: number
+  panicRuns: number
+  unknownSourceRuns: number
+  consecutiveFailures: number
+}
+
+export interface ScraperSourceHealth {
+  source: string
+  status: 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
+  lastResult: string
+  lastRunAt: string | null
+  lastSuccessAt: string | null
+  lastDurationMs: number
+  lastEntries: number
+  totalRuns: number
+  successfulRuns: number
+  errorRuns: number
+  panicRuns: number
+  unknownSourceRuns: number
+  consecutiveFailures: number
+  triggers: ScraperSourceHealthTrigger[]
+}
+
+export interface ScraperSourceHealthOverview {
+  total: number
+  idle: number
+  healthy: number
+  degraded: number
+  error: number
+  misconfigured: number
+}
+
+export interface ScraperSourceHealthResponse {
+  service: string
+  generatedAt: string
+  overview: ScraperSourceHealthOverview
+  sources: ScraperSourceHealth[]
+}
+
 function baseUrl(): string {
   return env.get('SCRAPER_URL', 'http://127.0.0.1:8002')
 }
@@ -50,6 +99,44 @@ export class ScraperClientService {
     } catch (err) {
       logger.error({ err }, 'scraper /scrape failed')
       throw new Error('Scraper service is unreachable (is it running on :8002?)')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  async fetchSourceHealth(): Promise<
+    | {
+        ok: true
+        summary: ScraperSourceHealthResponse
+      }
+    | {
+        ok: false
+        error: string
+      }
+  > {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10_000)
+
+    try {
+      const resp = await fetch(`${baseUrl()}/source-health`, {
+        method: 'GET',
+        signal: controller.signal,
+      })
+      if (!resp.ok) {
+        return {
+          ok: false,
+          error: `scraper source-health merespons ${resp.status}`,
+        }
+      }
+
+      const summary = (await resp.json()) as ScraperSourceHealthResponse
+      return { ok: true, summary }
+    } catch (err) {
+      logger.warn({ err }, 'scraper /source-health failed')
+      return {
+        ok: false,
+        error: 'scraper source-health tidak bisa dihubungi',
+      }
     } finally {
       clearTimeout(timer)
     }

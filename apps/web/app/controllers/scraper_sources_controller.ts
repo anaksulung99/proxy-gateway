@@ -25,28 +25,100 @@ export default class ScraperSourcesController {
    * and list them with their target list.
    */
   async index({ inertia, request, team }: HttpContext) {
+    const qs = request.qs()
     const requestedPage = Number(request.input('page', 1))
     const requestedPerPage = Number(request.input('perPage', 10))
     const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
     const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+    const healthStatus = qs.healthStatus ? String(qs.healthStatus) : null
 
     await scraperPipeline.provisionSources(team.id)
 
-    const availableSources = new Set(await scraperClient.listSources())
-    const sources = await ScraperSource.query()
-      .where('team_id', team.id)
-      .whereIn(
-        'source_key',
-        scraperPipeline.getKnownSources().map((s) => s.key)
-      )
-      .orderBy('name', 'asc')
+    const [availableSourceKeys, scraperHealthSnapshot, sources, lists, allRecentRuns] =
+      await Promise.all([
+        scraperClient.listSources(),
+        scraperClient.fetchSourceHealth(),
+        ScraperSource.query()
+          .where('team_id', team.id)
+          .whereIn(
+            'source_key',
+            scraperPipeline.getKnownSources().map((s) => s.key)
+          )
+          .orderBy('name', 'asc'),
+        ProxyList.query().where('team_id', team.id).orderBy('name', 'asc'),
+        scraperPipeline.listRecentRuns(team.id, 6),
+      ])
 
-    const lists = await ProxyList
-      .query()
-      .where('team_id', team.id)
-      .orderBy('name', 'asc')
+    const availableSources = new Set(availableSourceKeys)
+    const sourceHealthByKey = new Map(
+      scraperHealthSnapshot.ok
+        ? scraperHealthSnapshot.summary.sources.map((source) => [source.source, source] as const)
+        : []
+    )
+    const healthPriority = {
+      misconfigured: 0,
+      error: 1,
+      degraded: 2,
+      idle: 3,
+      healthy: 4,
+    } as const
 
-    const allRecentRuns = await scraperPipeline.listRecentRuns(team.id, 6)
+    const filteredSources = sources
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        sourceKey: s.sourceKey,
+        isEnabled: s.isEnabled,
+        proxyListId: s.proxyListId,
+        scheduleCron: s.scheduleCron,
+        lastCount: s.lastCount,
+        lastRunAt: s.lastRunAt?.toISO() ?? null,
+        availability: availableSources.has(s.sourceKey) ? 'available' : 'unreachable',
+        cronLabel: scraperPipeline.cronLabel(s.scheduleCron),
+        logsHref: `/app/scraper/logs?${new URLSearchParams({ sourceKey: s.sourceKey }).toString()}`,
+        health:
+          sourceHealthByKey.get(s.sourceKey) === undefined
+            ? null
+            : {
+              status: sourceHealthByKey.get(s.sourceKey)!.status,
+              lastResult: sourceHealthByKey.get(s.sourceKey)!.lastResult,
+              lastRunAt: sourceHealthByKey.get(s.sourceKey)!.lastRunAt,
+              lastSuccessAt: sourceHealthByKey.get(s.sourceKey)!.lastSuccessAt,
+              lastDurationMs: sourceHealthByKey.get(s.sourceKey)!.lastDurationMs,
+              lastEntries: sourceHealthByKey.get(s.sourceKey)!.lastEntries,
+              consecutiveFailures: sourceHealthByKey.get(s.sourceKey)!.consecutiveFailures,
+              triggers: sourceHealthByKey.get(s.sourceKey)!.triggers.map((trigger) => ({
+                trigger: trigger.trigger,
+                status: trigger.status,
+                totalRuns: trigger.totalRuns,
+                successfulRuns: trigger.successfulRuns,
+                errorRuns: trigger.errorRuns,
+                consecutiveFailures: trigger.consecutiveFailures,
+                lastRunAt: trigger.lastRunAt,
+              })),
+            },
+      }))
+      .filter((source) => {
+        if (!healthStatus) return true
+        return (source.health?.status ?? 'idle') === healthStatus
+      })
+      .sort((a, b) => {
+        const aStatus = a.health?.status ?? 'idle'
+        const bStatus = b.health?.status ?? 'idle'
+        const byStatus = healthPriority[aStatus] - healthPriority[bStatus]
+        if (byStatus !== 0) return byStatus
+
+        const byFailures =
+          (b.health?.consecutiveFailures ?? 0) - (a.health?.consecutiveFailures ?? 0)
+        if (byFailures !== 0) return byFailures
+
+        const aLastSuccess = a.health?.lastSuccessAt ? new Date(a.health.lastSuccessAt).getTime() : 0
+        const bLastSuccess = b.health?.lastSuccessAt ? new Date(b.health.lastSuccessAt).getTime() : 0
+        const byLastSuccess = aLastSuccess - bLastSuccess
+        if (byLastSuccess !== 0) return byLastSuccess
+
+        return a.name.localeCompare(b.name)
+      })
 
     const total = allRecentRuns.length
     const start = (page - 1) * perPage
@@ -61,19 +133,28 @@ export default class ScraperSourcesController {
     return inertia.render(
       'scraper/index' as never,
       {
-        sources: sources.map((s) => ({
-          ...s.serialize(),
-          availability: availableSources.has(s.sourceKey) ? 'available' : 'unreachable',
-          cronLabel: scraperPipeline.cronLabel(s.scheduleCron),
-        })),
+        sources: filteredSources,
         lists: lists.map((l) => ({ id: l.id, name: l.name })),
         overview: {
-          totalSources: sources.length,
-          enabledSources: sources.filter((source) => source.isEnabled).length,
-          configuredSources: sources.filter((source) => source.proxyListId).length,
-          availableSources: sources.filter((source) => availableSources.has(source.sourceKey))
+          totalSources: filteredSources.length,
+          enabledSources: filteredSources.filter((source) => source.isEnabled).length,
+          configuredSources: filteredSources.filter((source) => source.proxyListId).length,
+          availableSources: filteredSources.filter((source) => source.availability === 'available')
             .length,
         },
+        filters: {
+          healthStatus,
+        },
+        sourceHealth: scraperHealthSnapshot.ok
+          ? {
+            ok: true as const,
+            generatedAt: scraperHealthSnapshot.summary.generatedAt,
+            overview: scraperHealthSnapshot.summary.overview,
+          }
+          : {
+            ok: false as const,
+            error: scraperHealthSnapshot.error,
+          },
         recentRuns,
       } as never
     )

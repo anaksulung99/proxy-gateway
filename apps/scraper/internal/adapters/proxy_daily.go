@@ -3,7 +3,6 @@ package adapters
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -183,32 +182,14 @@ func fetchProxyDailyPage(start, length int) (string, error) {
 		params.Set(prefix+"[search][regex]", "false")
 	}
 
-	client := &http.Client{Timeout: httpTimeout}
-	req, err := http.NewRequest(http.MethodGet, "https://proxy-daily.com/api/serverside/proxies?"+params.Encode(), nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Referer", "https://proxy-daily.com/")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("proxy-daily http %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
-		return "", err
-	}
-	return string(bodyBytes), nil
+	return httpDo("https://proxy-daily.com/api/serverside/proxies?"+params.Encode(), httpRequestConfig{
+		Method: http.MethodGet,
+		Headers: map[string]string{
+			"Accept":           "application/json, text/javascript, */*; q=0.01",
+			"Referer":          "https://proxy-daily.com/",
+			"X-Requested-With": "XMLHttpRequest",
+		},
+	})
 }
 
 func mapProxyDailyProtocol(value string) string {

@@ -212,7 +212,7 @@ function destroySelected() {
           <CardTitle>Results</CardTitle>
           <CardDescription v-if="results">{{ results.length }} checked</CardDescription>
         </CardHeader>
-        <CardContent class="p-0">
+        <CardContent class="p-2">
           <Table>
             <TableHeader>
               <TableRow>

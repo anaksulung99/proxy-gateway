@@ -72,6 +72,9 @@ router
 
     // Proxy entries (bulk actions)
     router.post('proxy-entries/bulk', [controllers.ProxyEntries, 'bulk']).as('proxy-entries.bulk')
+    router
+      .post('proxy-entries/bulk/recheck', [controllers.ProxyEntries, 'reCheckBulk'])
+      .as('proxy-entries.reCheckBulk')
 
     // Gateway usage analytics
     router.get('analytics', [controllers.ProxyUsageAnalytics, 'index']).as('analytics.index')
@@ -115,7 +118,9 @@ router
     router
       .post('settings/api-keys/:id/quota', [controllers.ApiKeys, 'updateQuota'])
       .as('api-keys.quota')
-    router.post('settings/team-quota', [controllers.ApiKeys, 'updateTeamQuota']).as('api-keys.teamQuota')
+    router
+      .post('settings/team-quota', [controllers.ApiKeys, 'updateTeamQuota'])
+      .as('api-keys.teamQuota')
   })
   .prefix('app')
   .use([middleware.auth(), middleware.verified(), middleware.team()])

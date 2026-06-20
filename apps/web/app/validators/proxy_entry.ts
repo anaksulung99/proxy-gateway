@@ -5,3 +5,7 @@ export const bulkActionValidator = vine.create({
   action: vine.enum(['delete', 'recheck'] as const),
   ids: vine.array(vine.number().positive()).minLength(1),
 })
+export const recheckBulkValidator = vine.create({
+  listId: vine.number().positive(),
+  status: vine.enum(['timeout', 'unhealthy', 'unknown'] as const),
+})

@@ -51,14 +51,19 @@ export default class ApiKeysController {
 
     const teamModel = await Team.find(team.id)
 
-    return inertia.render('settings/api_keys', {
-      keys: keys.map((k) => this.serialize(k, byKey.get(k.id) ?? 0)),
-      gateway: { host: env.get('GATEWAY_HOST', '127.0.0.1:8000') },
-      team: {
-        monthlyQuotaBytes: teamModel?.monthlyQuotaBytes ? Number(teamModel.monthlyQuotaBytes) : null,
-        bytesThisMonth: Number(teamRow?.bytes ?? 0),
-      },
-    })
+    return inertia.render(
+      'settings/api_keys' as never,
+      {
+        keys: keys.map((k) => this.serialize(k, byKey.get(k.id) ?? 0)),
+        gateway: { host: env.get('GATEWAY_HOST', '127.0.0.1:8000') },
+        team: {
+          monthlyQuotaBytes: teamModel?.monthlyQuotaBytes
+            ? Number(teamModel.monthlyQuotaBytes)
+            : null,
+          bytesThisMonth: Number(teamRow?.bytes ?? 0),
+        },
+      } as never
+    )
   }
 
   /**

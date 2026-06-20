@@ -2,7 +2,7 @@ import ProxyList from '#models/proxy_list'
 import ProxyEntry from '#models/proxy_entry'
 import healthClient from '#services/health_check_client_service'
 import proxyEngineClient from '#services/proxy_engine_client_service'
-import { bulkActionValidator } from '#validators/proxy_entry'
+import { bulkActionValidator, recheckBulkValidator } from '#validators/proxy_entry'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class ProxyEntriesController {
@@ -130,5 +130,57 @@ export default class ProxyEntriesController {
       `attachment; filename="${safeName}.${format === 'csv' ? 'csv' : 'txt'}"`
     )
     return response.send(body)
+  }
+
+  /**
+   * Recheck all proxy list with status Timeout, Unhealthy or Unchecked
+   */
+  async reCheckBulk({ request, response, team, session }: HttpContext) {
+    const payload = await request.validateUsing(recheckBulkValidator)
+
+    const list = await ProxyList.query()
+      .where('team_id', team.id)
+      .where('id', payload.listId)
+      .firstOrFail()
+
+    const entries = await ProxyEntry.query()
+      .where('proxy_list_id', list.id)
+      .where('status', payload.status)
+
+    if (entries.length === 0) {
+      session.flash('error', `No ${payload.status} entries found in this list`)
+      return response.redirect().back()
+    }
+
+    try {
+      const summary = await healthClient.checkEntries(entries, 'request', {
+        teamId: team.id,
+        proxyListId: list.id,
+      })
+      await proxyEngineClient.invalidateLists([list.id])
+      session.flash('healthCheckRunSummary', {
+        runId: summary.runId,
+        sourceType: 'proxy_list_bulk',
+        status: 'success',
+        mode: summary.mode,
+        targetUrl: summary.targetUrl,
+        totalInputs: summary.checked + summary.invalid,
+        checked: summary.checked,
+        healthy: summary.healthy,
+        unhealthy: summary.unhealthy,
+        timeout: summary.timeout,
+        invalid: summary.invalid,
+        proxyListId: list.id,
+        finishedAt: summary.finishedAt ?? new Date().toISOString(),
+      })
+      session.flash(
+        'success',
+        `Checked ${summary.checked}: ${summary.healthy} healthy, ${summary.unhealthy} unhealthy, ${summary.timeout} timeout`
+      )
+    } catch (error) {
+      session.flash('error', (error as Error).message)
+    }
+
+    return response.redirect().back()
   }
 }

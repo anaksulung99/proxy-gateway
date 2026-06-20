@@ -162,6 +162,12 @@ const routes = {
     tokens: [{"old":"/app/proxy-entries/bulk","type":0,"val":"app","end":""},{"old":"/app/proxy-entries/bulk","type":0,"val":"proxy-entries","end":""},{"old":"/app/proxy-entries/bulk","type":0,"val":"bulk","end":""}],
     types: placeholder as Registry['proxy-entries.bulk']['types'],
   },
+  'proxy-entries.reCheckBulk': {
+    methods: ["POST"],
+    pattern: '/app/proxy-entries/bulk/recheck',
+    tokens: [{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"app","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"proxy-entries","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"bulk","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"recheck","end":""}],
+    types: placeholder as Registry['proxy-entries.reCheckBulk']['types'],
+  },
   'analytics.index': {
     methods: ["GET","HEAD"],
     pattern: '/app/analytics',
