@@ -78,6 +78,9 @@ router
     router
       .get('analytics/export', [controllers.ProxyUsageAnalytics, 'export'])
       .as('analytics.export')
+    router
+      .delete('analytics/bulk', [controllers.ProxyUsageAnalytics, 'deleteMany'])
+      .as('analytics.deleteManyPost')
 
     // Tools — external health checker
     router.get('tools', [controllers.ToolsChecker, 'index']).as('tools.index')
@@ -109,6 +112,10 @@ router
     router
       .post('settings/api-keys/:id/revoke', [controllers.ApiKeys, 'revoke'])
       .as('api-keys.revokePost')
+    router
+      .post('settings/api-keys/:id/quota', [controllers.ApiKeys, 'updateQuota'])
+      .as('api-keys.quota')
+    router.post('settings/team-quota', [controllers.ApiKeys, 'updateTeamQuota']).as('api-keys.teamQuota')
   })
   .prefix('app')
   .use([middleware.auth(), middleware.verified(), middleware.team()])

@@ -43,6 +43,7 @@ export interface ApiDefinition {
   analytics: {
     index: typeof routes['analytics.index']
     export: typeof routes['analytics.export']
+    deleteManyPost: typeof routes['analytics.deleteManyPost']
   }
   tools: {
     index: typeof routes['tools.index']
@@ -64,5 +65,7 @@ export interface ApiDefinition {
     store: typeof routes['api-keys.store']
     revoke: typeof routes['api-keys.revoke']
     revokePost: typeof routes['api-keys.revokePost']
+    quota: typeof routes['api-keys.quota']
+    teamQuota: typeof routes['api-keys.teamQuota']
   }
 }

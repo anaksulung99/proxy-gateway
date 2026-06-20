@@ -30,10 +30,10 @@ defineProps<{
         Pool terbesar yang paling berpengaruh ke kualitas endpoint tim Anda.
       </CardDescription>
     </CardHeader>
-    <CardContent class="p-0">
+    <CardContent class="p-4">
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow class="bg-muted divide-sky-600/30 divide-y">
             <TableHead>Pool</TableHead>
             <TableHead>Inventory</TableHead>
             <TableHead>Health</TableHead>
@@ -47,9 +47,9 @@ defineProps<{
               Belum ada proxy pool yang bisa dipantau.
             </TableCell>
           </TableRow>
-          <TableRow v-for="pool in pools" :key="pool.id">
+          <TableRow v-for="pool in pools" :key="pool.id" class="divide-indigo-600/30 divide-y">
             <TableCell>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 justify-between">
                 <Link :href="`/app/proxy-lists/${pool.id}`" class="font-medium hover:underline">
                   {{ pool.name }}
                 </Link>
@@ -58,9 +58,7 @@ defineProps<{
                 </Badge>
               </div>
             </TableCell>
-            <TableCell class="text-sm">
-              {{ pool.entriesCount }} proxies
-            </TableCell>
+            <TableCell class="text-sm"> {{ pool.entriesCount }} proxies </TableCell>
             <TableCell>
               <div class="space-y-1 text-sm">
                 <p class="font-medium">{{ pool.healthyRatio }}% healthy</p>

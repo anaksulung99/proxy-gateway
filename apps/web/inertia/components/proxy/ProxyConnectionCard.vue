@@ -12,7 +12,7 @@ interface RotationConfig {
 }
 
 const props = defineProps<{
-  gateway: { host: string; username: string; hasActiveKey: boolean }
+  gateway: { host: string; socksHost: string; username: string; hasActiveKey: boolean }
   rotationConfig: RotationConfig | null
 }>()
 
@@ -21,6 +21,9 @@ const mode = computed(() => props.rotationConfig?.rotationType ?? 'per_request')
 
 const connectionUrl = computed(
   () => `http://${props.gateway.username}:${KEY}@${props.gateway.host}`
+)
+const socksUrl = computed(
+  () => `socks5h://${props.gateway.username}:${KEY}@${props.gateway.socksHost}`
 )
 const curlExample = computed(() => `curl -x "${connectionUrl.value}" https://api.ipify.org`)
 const stickyUsername = computed(() => `${props.gateway.username}-session-myid123`)
@@ -93,7 +96,7 @@ function copy(value: string, label: string) {
           <Label class="text-xs">Password</Label>
           <Link
             href="/app/settings/api-keys"
-            class="flex h-[34px] items-center justify-between gap-1 rounded border border-dashed px-2 text-xs text-emerald-600 hover:bg-muted"
+            class="flex h-8.5 items-center justify-between gap-1 rounded border border-dashed px-2 text-xs text-emerald-600 hover:bg-muted"
           >
             <span>Use your API key</span>
             <Icon icon="lucide:external-link" class="size-3.5" />
@@ -127,6 +130,24 @@ function copy(value: string, label: string) {
             size="icon"
             class="size-8"
             @click="copy(connectionUrl, 'Connection string')"
+          >
+            <Icon icon="lucide:copy" class="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <!-- SOCKS5 connection string -->
+      <div class="grid gap-1.5">
+        <Label class="text-xs">SOCKS5 connection string</Label>
+        <div class="flex items-center gap-1">
+          <code class="flex-1 overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-xs">{{
+            socksUrl
+          }}</code>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-8"
+            @click="copy(socksUrl, 'SOCKS5 string')"
           >
             <Icon icon="lucide:copy" class="size-3.5" />
           </Button>

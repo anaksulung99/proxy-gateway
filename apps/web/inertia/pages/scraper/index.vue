@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { usePolling } from '~/composables/usePolling'
 
 interface Source {
   id: number
@@ -70,6 +71,19 @@ for (const source of props.sources) {
 }
 
 const scraperRunSummary = computed(() => page.props.flash?.scraperRunSummary ?? null)
+
+// Live refresh while a scrape is running (manual, all, or scheduled in-flight).
+const anyRunning = computed(
+  () =>
+    runningAll.value ||
+    running.value.size > 0 ||
+    props.recentRuns.data.some((r) => r.status === 'running')
+)
+const { enabled: livePolling } = usePolling(['sources', 'overview', 'recentRuns'], {
+  interval: 4000,
+  enabled: anyRunning.value,
+})
+watch(anyRunning, (v) => (livePolling.value = v))
 
 const firstRow = computed(() =>
   props.recentRuns.total === 0 ? 0 : (props.recentRuns.page - 1) * props.recentRuns.perPage + 1

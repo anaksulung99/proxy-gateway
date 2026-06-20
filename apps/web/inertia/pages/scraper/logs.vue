@@ -229,7 +229,7 @@ function fmtDate(value: string | null) {
           </CardDescription>
         </div>
         <Button v-if="selected.size > 0" variant="destructive" size="sm" @click="destroySelected">
-          <Icon icon="lucide:trash-2" class="mr-1 size-4" />
+          <Icon icon="lucide:trash-2" class="size-4" />
           Delete selected ({{ selected.size }})
         </Button>
       </CardHeader>

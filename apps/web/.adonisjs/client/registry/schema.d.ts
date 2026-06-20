@@ -343,6 +343,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['export']>>>
     }
   }
+  'analytics.deleteManyPost': {
+    methods: ["DELETE"]
+    pattern: '/app/analytics/bulk'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_list').deleteProxyListValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_list').deleteProxyListValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['deleteMany']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_usage_analytics_controller').default['deleteMany']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
   'tools.index': {
     methods: ["GET","HEAD"]
     pattern: '/app/tools'
@@ -521,6 +533,30 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['revoke']>>>
+    }
+  }
+  'api-keys.quota': {
+    methods: ["POST"]
+    pattern: '/app/settings/api-keys/:id/quota'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/api_key').keyQuotaValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/api_key').keyQuotaValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateQuota']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateQuota']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'api-keys.teamQuota': {
+    methods: ["POST"]
+    pattern: '/app/settings/team-quota'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/api_key').teamQuotaValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/api_key').teamQuotaValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateTeamQuota']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateTeamQuota']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
 }

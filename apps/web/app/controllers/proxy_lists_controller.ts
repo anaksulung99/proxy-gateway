@@ -175,6 +175,7 @@ export default class ProxyListsController {
         rotationSummary: rotationService.summarize(list.rotationConfig),
         gateway: {
           host: env.get('GATEWAY_HOST', '127.0.0.1:8000'),
+          socksHost: env.get('GATEWAY_SOCKS_HOST', '127.0.0.1:1080'),
           username: `list-${list.id}`,
           hasActiveKey: !!(await ApiKey.query()
             .where('team_id', team.id)

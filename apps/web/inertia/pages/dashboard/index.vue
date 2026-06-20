@@ -3,8 +3,12 @@ import { Head } from '@inertiajs/vue3'
 import { router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { usePolling } from '~/composables/usePolling'
 
 const ANY = '__all__'
+
+// Live KPIs — silent background refresh (pauses when tab hidden).
+usePolling(['stats', 'alerts'], { interval: 8000 })
 
 function fmtBytes(value: number) {
   if (value < 1024) return `${value} B`
@@ -186,7 +190,7 @@ const refreshWithState = () => {
     </template>
     <div class="space-y-6">
       <div
-        class="rounded-3xl border border-border/70 bg-linear-to-br from-cyan-500/10 via-background to-violet-500/10 p-6"
+        class="rounded-3xl border border-border/70 bg-linear-to-br from-emerald-500/10 via-background to-violet-500/10 p-6 dark:from-emerald-700/30 dark:via-background dark:to-violet-700/30"
       >
         <div class="flex flex-col gap-4">
           <div class="max-w-3xl">
@@ -208,7 +212,7 @@ const refreshWithState = () => {
             </p>
           </div>
 
-          <div class="rounded-2xl border bg-background/80 p-4 xl:min-w-80">
+          <div class="rounded-2xl border bg-background/80 p-4 xl:min-w-80 shadow-md">
             <p class="text-xs uppercase tracking-[0.2em] text-muted-foreground">Pool Filter</p>
             <div class="mt-3 flex flex-col gap-3">
               <Select v-model="poolFilter.listId">

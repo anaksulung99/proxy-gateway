@@ -17,6 +17,7 @@ import (
 	"github.com/proxy-system/proxy-engine/internal/apikey"
 	"github.com/proxy-system/proxy-engine/internal/filter"
 	"github.com/proxy-system/proxy-engine/internal/pool"
+	"github.com/proxy-system/proxy-engine/internal/quota"
 	"github.com/proxy-system/proxy-engine/internal/session"
 	"github.com/proxy-system/proxy-engine/internal/usage"
 	"github.com/rs/zerolog"
@@ -33,20 +34,34 @@ type Gateway struct {
 	sel    *session.Selector
 	secret string
 	keys   *apikey.Validator
+	quota  *quota.Quota
 	usage  *usage.Sink
 	log    zerolog.Logger
 	srv    *http.Server
 }
 
-func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, usageSink *usage.Sink, log zerolog.Logger) *Gateway {
-	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, usage: usageSink, log: log}
+func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, q *quota.Quota, usageSink *usage.Sink, log zerolog.Logger) *Gateway {
+	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, quota: q, usage: usageSink, log: log}
+}
+
+// quotaBlocked reports whether the caller has exhausted its team or key quota.
+func (g *Gateway) quotaBlocked(ctx context.Context, cfg *pool.ListConfig, auth authIdentity) (bool, string) {
+	if g.quota == nil {
+		return false, ""
+	}
+	return invertAllowed(g.quota.Allowed(ctx, cfg.TeamID, cfg.TeamQuotaBytes, auth.keyID, auth.keyQuotaBytes))
+}
+
+func invertAllowed(ok bool, reason string) (bool, string) {
+	return !ok, reason
 }
 
 // authIdentity is the resolved caller after a successful Proxy-Authorization.
 type authIdentity struct {
-	master bool  // authenticated with the master GATEWAY_SECRET
-	teamID int64 // owning team (for API-key auth)
-	keyID  int64 // api_keys.id (for last-used tracking)
+	master        bool  // authenticated with the master GATEWAY_SECRET
+	teamID        int64 // owning team (for API-key auth)
+	keyID         int64 // api_keys.id (for last-used tracking)
+	keyQuotaBytes int64 // monthly quota of the key (0 = unlimited)
 }
 
 func (g *Gateway) ListenAndServe(addr string) error {
@@ -160,6 +175,29 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.keys.TouchLastUsed(auth.keyID)
 	}
 
+	// Monthly bandwidth quota (team + key).
+	if blocked, reason := g.quotaBlocked(r.Context(), cfg, auth); blocked {
+		http.Error(w, reason, http.StatusTooManyRequests)
+		g.recordUsage(usage.Event{
+			TeamID:          cfg.TeamID,
+			ProxyListID:     cfg.ID,
+			APIKeyID:        auth.keyID,
+			RequestMethod:   r.Method,
+			TargetHost:      targetHost,
+			TargetPort:      int(targetPort),
+			TargetScheme:    targetScheme,
+			IsTunnel:        r.Method == http.MethodConnect,
+			Success:         false,
+			StatusCode:      http.StatusTooManyRequests,
+			DurationMs:      time.Since(startedAt).Milliseconds(),
+			SessionKey:      sessionID,
+			CountryOverride: country,
+			ErrorMessage:    reason,
+			RequestedAt:     startedAt.UTC(),
+		})
+		return
+	}
+
 	candidates := filter.Apply(cfg.Proxies, cfg.Rotation, country)
 	if len(candidates) == 0 {
 		g.log.Warn().Int64("list", listID).Int("pool", len(cfg.Proxies)).Int("filtered", len(candidates)).Msg("no upstream")
@@ -212,10 +250,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Str("protocol", upstream.Protocol).
 				Int("attempt", attempt).
 				Msg("upstream request succeeded")
+			g.quota.Add(r.Context(), cfg.TeamID, auth.keyID, lastOutcome.ResponseBytes)
 			g.recordUsage(usage.Event{
 				TeamID:           cfg.TeamID,
 				ProxyListID:      cfg.ID,
 				ProxyEntryID:     upstream.ID,
+				APIKeyID:         auth.keyID,
 				RequestMethod:    r.Method,
 				TargetHost:       targetHost,
 				TargetPort:       int(targetPort),
@@ -279,10 +319,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// authenticate parses Proxy-Authorization (Basic). The password is either the
-// master GATEWAY_SECRET (works for any list) or a per-team API key (the list's
-// team must match the key's team — enforced after the list is loaded). Username
-// encodes routing: a bare list id ("1") or "list-<id>[-session-<sid>][-country-<cc>]".
+// authenticate parses Proxy-Authorization (Basic) and delegates to authorize.
 func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
 	h := r.Header.Get("Proxy-Authorization")
 	if !strings.HasPrefix(h, "Basic ") {
@@ -296,15 +333,22 @@ func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, countr
 	if !found {
 		return 0, "", "", authIdentity{}, false
 	}
+	return g.authorize(r.Context(), user, pass)
+}
 
+// authorize validates the password (master GATEWAY_SECRET, which works for any
+// list, or a per-team API key whose team must match the list) and parses the
+// routing username ("list-<id>[-session-<sid>][-country-<cc>]" or a bare id).
+// Shared by the HTTP and SOCKS5 frontends.
+func (g *Gateway) authorize(ctx context.Context, user, pass string) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
 	if g.secret != "" && subtle.ConstantTimeCompare([]byte(pass), []byte(g.secret)) == 1 {
 		auth.master = true
 	} else if g.keys != nil {
-		teamID, keyID, valid := g.keys.Validate(r.Context(), pass)
+		teamID, keyID, quota, valid := g.keys.Validate(ctx, pass)
 		if !valid {
 			return 0, "", "", authIdentity{}, false
 		}
-		auth.teamID, auth.keyID = teamID, keyID
+		auth.teamID, auth.keyID, auth.keyQuotaBytes = teamID, keyID, quota
 	} else {
 		return 0, "", "", authIdentity{}, false
 	}
@@ -314,6 +358,35 @@ func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, countr
 		return 0, "", "", authIdentity{}, false
 	}
 	return listID, sessionID, country, auth, true
+}
+
+// selectUpstream resolves a list + filters + picks an upstream for the given
+// authenticated caller. Returns the upstream and the resolved list config, or a
+// classified error. Shared selection logic for the SOCKS5 frontend.
+func (g *Gateway) selectUpstream(ctx context.Context, listID int64, sessionID, country string, auth authIdentity, exclude []int64) (pool.Upstream, *pool.ListConfig, error) {
+	cfg, err := g.repo.Load(ctx, listID)
+	if err != nil {
+		return pool.Upstream{}, nil, err
+	}
+	if !cfg.IsActive {
+		return pool.Upstream{}, cfg, fmt.Errorf("list inactive")
+	}
+	if !auth.master && auth.teamID != cfg.TeamID {
+		return pool.Upstream{}, cfg, fmt.Errorf("api key team mismatch")
+	}
+	if g.keys != nil {
+		g.keys.TouchLastUsed(auth.keyID)
+	}
+
+	candidates := filter.Apply(cfg.Proxies, cfg.Rotation, country)
+	for _, id := range exclude {
+		candidates = withoutUpstreamID(candidates, id)
+	}
+	upstream, err := g.sel.Pick(ctx, listID, cfg.Rotation, sessionID, candidates)
+	if err != nil {
+		return pool.Upstream{}, cfg, err
+	}
+	return upstream, cfg, nil
 }
 
 func parseUser(u string) (listID int64, sessionID, country string) {

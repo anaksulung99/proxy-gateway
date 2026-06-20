@@ -2,6 +2,7 @@ import db from '@adonisjs/lucid/services/db'
 import ProxyList from '#models/proxy_list'
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
+import { deleteProxyListValidator } from '#validators/proxy_list'
 
 const ALLOWED_HOURS = [24, 168, 720] as const
 type TrendUnit = 'hour' | 'day'
@@ -109,15 +110,27 @@ function csvEscape(value: unknown) {
 export default class ProxyUsageAnalyticsController {
   async index({ inertia, request, team }: HttpContext) {
     const qs = request.qs()
-    const page = Math.max(Number(qs.page ?? 1), 1)
-    const perPage = 25
+    const requestedPage = Number(request.input('page', 1))
+    const requestedPerPage = Number(request.input('perPage', 10))
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+    const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
+
     const { hours, listId, status, since } = parseFilters(qs)
     const trendUnit: TrendUnit = hours <= 24 ? 'hour' : 'day'
     const trendStart = since.startOf(trendUnit)
     const trendEnd = DateTime.now().startOf(trendUnit)
     const logsBaseQuery = buildLogsBaseQuery(team.id, { hours, listId, status, since })
+    const logCountRow = await logsBaseQuery
+      .clone()
+      .clearSelect()
+      .clearOrder()
+      .count('* as total')
+      .first()
+    const logTotal = Number(logCountRow?.total ?? 0)
+    const lastPage = Math.max(Math.ceil(logTotal / perPage), 1)
+    const currentPage = Math.min(page, lastPage)
 
-    const [overviewRows, topTargets, topPools, methods, trendRows, logRows, logCountRow, lists] =
+    const [overviewRows, topTargets, topPools, methods, trendRows, logRows, lists] =
       await Promise.all([
         applyUsageFilters(
           db
@@ -187,9 +200,8 @@ export default class ProxyUsageAnalyticsController {
         ),
         logsBaseQuery
           .clone()
-          .offset((page - 1) * perPage)
+          .offset((currentPage - 1) * perPage)
           .limit(perPage),
-        logsBaseQuery.clone().clearSelect().clearOrder().count('* as total').first(),
         ProxyList.query().where('team_id', team.id).orderBy('name', 'asc'),
       ])
 
@@ -197,8 +209,6 @@ export default class ProxyUsageAnalyticsController {
     const totalRequests = Number(overview?.total_requests ?? 0)
     const successfulRequests = Number(overview?.successful_requests ?? 0)
     const failedRequests = Number(overview?.failed_requests ?? 0)
-    const logTotal = Number(logCountRow?.total ?? 0)
-    const lastPage = Math.max(Math.ceil(logTotal / perPage), 1)
     const trendMap = new Map<
       string,
       { requestCount: number; successfulRequests: number; failedRequests: number }
@@ -295,7 +305,7 @@ export default class ProxyUsageAnalyticsController {
           })),
           meta: {
             total: logTotal,
-            currentPage: Math.min(page, lastPage),
+            currentPage,
             lastPage,
             perPage,
           },
@@ -363,5 +373,12 @@ export default class ProxyUsageAnalyticsController {
     response.header('Content-Type', 'text/csv; charset=utf-8')
     response.header('Content-Disposition', `attachment; filename="${safeName}.csv"`)
     return response.send([header.join(','), ...lines].join('\n'))
+  }
+
+  async deleteMany({ request, response, team, session }: HttpContext) {
+    const payload = await request.validateUsing(deleteProxyListValidator)
+    await ProxyList.query().where('team_id', team.id).whereIn('id', payload.ids).delete()
+    session.flash('success', 'Selected proxy lists deleted')
+    return response.redirect().back()
   }
 }

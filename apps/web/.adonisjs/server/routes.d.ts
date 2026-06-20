@@ -32,6 +32,7 @@ export type ScannedRoutes = {
     'proxy-entries.bulk': { paramsTuple?: []; params?: {} }
     'analytics.index': { paramsTuple?: []; params?: {} }
     'analytics.export': { paramsTuple?: []; params?: {} }
+    'analytics.deleteManyPost': { paramsTuple?: []; params?: {} }
     'tools.index': { paramsTuple?: []; params?: {} }
     'tools.logs': { paramsTuple?: []; params?: {} }
     'tools.check': { paramsTuple?: []; params?: {} }
@@ -47,6 +48,8 @@ export type ScannedRoutes = {
     'api-keys.store': { paramsTuple?: []; params?: {} }
     'api-keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api-keys.quota': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api-keys.teamQuota': { paramsTuple?: []; params?: {} }
   }
   GET: {
     'home': { paramsTuple?: []; params?: {} }
@@ -106,6 +109,8 @@ export type ScannedRoutes = {
     'scraper.runEnabled': { paramsTuple?: []; params?: {} }
     'api-keys.store': { paramsTuple?: []; params?: {} }
     'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api-keys.quota': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api-keys.teamQuota': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'proxy-lists.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -114,6 +119,7 @@ export type ScannedRoutes = {
   DELETE: {
     'proxy-lists.bulkDestroy': { paramsTuple?: []; params?: {} }
     'proxy-lists.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'analytics.deleteManyPost': { paramsTuple?: []; params?: {} }
     'tools.deleteManyPost': { paramsTuple?: []; params?: {} }
     'scraper.deleteManyPost': { paramsTuple?: []; params?: {} }
     'api-keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

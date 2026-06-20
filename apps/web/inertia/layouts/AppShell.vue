@@ -11,7 +11,7 @@ const page = usePage<Data.SharedProps>()
     <AppSidebar />
     <SidebarInset>
       <header
-        class="sticky top-0 flex h-12 z-999 shrink-0 items-center gap-2 border-b-2 border-neutral-300 dark:border-neutral-800 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-background pt-14 md:pt-5"
+        class="sticky top-0 flex z-999 shrink-0 items-center gap-2 border-b-2 border-neutral-300 dark:border-neutral-800 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-background py-3 data-state:close:py-3"
       >
         <div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
           <SidebarTrigger class="-ml-1" />
@@ -51,7 +51,7 @@ const page = usePage<Data.SharedProps>()
       <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div class="flex h-screen w-full flex-col">
           <div class="mx-auto h-full w-full flex-1 overflow-y-auto p-6 space-y-6">
-            <div class="flex flex-col md:flex-row md:justify-between gap-2">
+            <div class="flex flex-col md:flex-row md:justify-between gap-4">
               <div class="text-start flex flex-col justify-start">
                 <h1 v-if="props.title" class="text-2xl font-bold">{{ props.title }}</h1>
                 <p v-if="props.description" class="text-sm text-muted-foreground mt-1">

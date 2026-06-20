@@ -28,6 +28,7 @@ type Validator struct {
 type cacheItem struct {
 	teamID int64
 	keyID  int64
+	quota  int64
 	ok     bool
 	exp    time.Time
 }
@@ -46,38 +47,40 @@ func hashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Validate returns the owning team + key id for a plaintext token. Both
-// positive and negative results are cached to blunt brute-force lookups.
-func (v *Validator) Validate(ctx context.Context, token string) (teamID, keyID int64, ok bool) {
+// Validate returns the owning team, key id and the key's monthly quota (0 =
+// unlimited) for a plaintext token. Both positive and negative results are
+// cached to blunt brute-force lookups.
+func (v *Validator) Validate(ctx context.Context, token string) (teamID, keyID, quotaBytes int64, ok bool) {
 	if token == "" {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	h := hashToken(token)
 
 	v.mu.RLock()
 	if it, found := v.cache[h]; found && time.Now().Before(it.exp) {
 		v.mu.RUnlock()
-		return it.teamID, it.keyID, it.ok
+		return it.teamID, it.keyID, it.quota, it.ok
 	}
 	v.mu.RUnlock()
 
-	var tID, kID int64
+	var tID, kID, quota int64
 	err := v.db.QueryRow(ctx,
-		`SELECT id, team_id FROM api_keys WHERE token_hash=$1 AND revoked_at IS NULL`, h).
-		Scan(&kID, &tID)
+		`SELECT id, team_id, COALESCE(monthly_quota_bytes, 0)
+		   FROM api_keys WHERE token_hash=$1 AND revoked_at IS NULL`, h).
+		Scan(&kID, &tID, &quota)
 
 	item := cacheItem{exp: time.Now().Add(v.ttl)}
 	if err == nil {
-		item.teamID, item.keyID, item.ok = tID, kID, true
+		item.teamID, item.keyID, item.quota, item.ok = tID, kID, quota, true
 	} else if err != pgx.ErrNoRows {
 		// On DB errors don't cache; just fail this request.
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 
 	v.mu.Lock()
 	v.cache[h] = item
 	v.mu.Unlock()
-	return item.teamID, item.keyID, item.ok
+	return item.teamID, item.keyID, item.quota, item.ok
 }
 
 // TouchLastUsed updates api_keys.last_used_at at most once per minute per key.

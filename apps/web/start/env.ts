@@ -68,6 +68,7 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   // Proxy engine gateway (shown to users as a connection string)
   GATEWAY_HOST: Env.schema.string.optional(),
+  GATEWAY_SOCKS_HOST: Env.schema.string.optional(),
   GATEWAY_SECRET: Env.schema.string.optional(),
   PROXY_ENGINE_ADMIN_URL: Env.schema.string.optional(),
   INTERNAL_API_SECRET: Env.schema.string.optional(),

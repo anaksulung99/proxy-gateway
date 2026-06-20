@@ -174,6 +174,12 @@ const routes = {
     tokens: [{"old":"/app/analytics/export","type":0,"val":"app","end":""},{"old":"/app/analytics/export","type":0,"val":"analytics","end":""},{"old":"/app/analytics/export","type":0,"val":"export","end":""}],
     types: placeholder as Registry['analytics.export']['types'],
   },
+  'analytics.deleteManyPost': {
+    methods: ["DELETE"],
+    pattern: '/app/analytics/bulk',
+    tokens: [{"old":"/app/analytics/bulk","type":0,"val":"app","end":""},{"old":"/app/analytics/bulk","type":0,"val":"analytics","end":""},{"old":"/app/analytics/bulk","type":0,"val":"bulk","end":""}],
+    types: placeholder as Registry['analytics.deleteManyPost']['types'],
+  },
   'tools.index': {
     methods: ["GET","HEAD"],
     pattern: '/app/tools',
@@ -263,6 +269,18 @@ const routes = {
     pattern: '/app/settings/api-keys/:id/revoke',
     tokens: [{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"api-keys","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":1,"val":"id","end":""},{"old":"/app/settings/api-keys/:id/revoke","type":0,"val":"revoke","end":""}],
     types: placeholder as Registry['api-keys.revokePost']['types'],
+  },
+  'api-keys.quota': {
+    methods: ["POST"],
+    pattern: '/app/settings/api-keys/:id/quota',
+    tokens: [{"old":"/app/settings/api-keys/:id/quota","type":0,"val":"app","end":""},{"old":"/app/settings/api-keys/:id/quota","type":0,"val":"settings","end":""},{"old":"/app/settings/api-keys/:id/quota","type":0,"val":"api-keys","end":""},{"old":"/app/settings/api-keys/:id/quota","type":1,"val":"id","end":""},{"old":"/app/settings/api-keys/:id/quota","type":0,"val":"quota","end":""}],
+    types: placeholder as Registry['api-keys.quota']['types'],
+  },
+  'api-keys.teamQuota': {
+    methods: ["POST"],
+    pattern: '/app/settings/team-quota',
+    tokens: [{"old":"/app/settings/team-quota","type":0,"val":"app","end":""},{"old":"/app/settings/team-quota","type":0,"val":"settings","end":""},{"old":"/app/settings/team-quota","type":0,"val":"team-quota","end":""}],
+    types: placeholder as Registry['api-keys.teamQuota']['types'],
   },
 } as const satisfies Record<string, AdonisEndpoint>
 

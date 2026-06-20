@@ -8,7 +8,8 @@ import (
 type Config struct {
 	Env            string
 	Port           string // admin/health (Fiber)
-	GatewayPort    string // forward-proxy listener
+	GatewayPort    string // HTTP forward-proxy listener
+	SocksPort      string // SOCKS5 inbound listener
 	GatewaySecret  string // password clients must present
 	Workers        int
 	InternalSecret string
@@ -45,6 +46,7 @@ func Load() *Config {
 	viper.SetDefault("GO_ENV", "development")
 	viper.SetDefault("PORT", "8001")
 	viper.SetDefault("GATEWAY_PORT", "8000")
+	viper.SetDefault("SOCKS_PORT", "1080")
 	viper.SetDefault("GATEWAY_SECRET", "changeme")
 	viper.SetDefault("WORKERS", 50)
 	viper.SetDefault("REDIS_HOST", "127.0.0.1")
@@ -56,6 +58,7 @@ func Load() *Config {
 		Env:            viper.GetString("GO_ENV"),
 		Port:           viper.GetString("PORT"),
 		GatewayPort:    viper.GetString("GATEWAY_PORT"),
+		SocksPort:      viper.GetString("SOCKS_PORT"),
 		GatewaySecret:  viper.GetString("GATEWAY_SECRET"),
 		Workers:        viper.GetInt("WORKERS"),
 		InternalSecret: viper.GetString("INTERNAL_API_SECRET"),

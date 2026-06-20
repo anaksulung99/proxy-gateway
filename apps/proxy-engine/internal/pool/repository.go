@@ -34,12 +34,13 @@ type Rotation struct {
 }
 
 type ListConfig struct {
-	ID       int64
-	TeamID   int64
-	Name     string
-	IsActive bool
-	Rotation Rotation
-	Proxies  []Upstream
+	ID             int64
+	TeamID         int64
+	TeamQuotaBytes int64
+	Name           string
+	IsActive       bool
+	Rotation       Rotation
+	Proxies        []Upstream
 }
 
 type cacheItem struct {
@@ -112,9 +113,12 @@ func (r *Repository) Load(ctx context.Context, listID int64) (*ListConfig, error
 func (r *Repository) loadFromDB(ctx context.Context, listID int64) (*ListConfig, error) {
 	cfg := &ListConfig{ID: listID, Rotation: Rotation{Type: "per_request", Protocol: "any"}}
 
-	// list
-	err := r.db.QueryRow(ctx, `SELECT team_id, name, is_active FROM proxy_lists WHERE id=$1`, listID).
-		Scan(&cfg.TeamID, &cfg.Name, &cfg.IsActive)
+	// list (+ team monthly quota)
+	err := r.db.QueryRow(ctx,
+		`SELECT pl.team_id, pl.name, pl.is_active, COALESCE(t.monthly_quota_bytes, 0)
+		   FROM proxy_lists pl JOIN teams t ON t.id = pl.team_id
+		  WHERE pl.id=$1`, listID).
+		Scan(&cfg.TeamID, &cfg.Name, &cfg.IsActive, &cfg.TeamQuotaBytes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrListNotFound
 	}

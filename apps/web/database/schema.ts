@@ -8,18 +8,7 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
 export class ApiKeySchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'id',
-    'lastUsedAt',
-    'name',
-    'revokedAt',
-    'teamId',
-    'tokenHash',
-    'tokenPrefix',
-    'updatedAt',
-    'userId',
-  ] as const
+  static $columns = ['createdAt', 'id', 'lastUsedAt', 'monthlyQuotaBytes', 'name', 'revokedAt', 'teamId', 'tokenHash', 'tokenPrefix', 'updatedAt', 'userId'] as const
   $columns = ApiKeySchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -27,6 +16,8 @@ export class ApiKeySchema extends BaseModel {
   declare id: number
   @column.dateTime()
   declare lastUsedAt: DateTime | null
+  @column()
+  declare monthlyQuotaBytes: bigint | number | null
   @column()
   declare name: string
   @column.dateTime()
@@ -44,27 +35,7 @@ export class ApiKeySchema extends BaseModel {
 }
 
 export class HealthCheckRunSchema extends BaseModel {
-  static $columns = [
-    'checkedCount',
-    'createdAt',
-    'errorMessage',
-    'finishedAt',
-    'healthyCount',
-    'id',
-    'invalidCount',
-    'meta',
-    'mode',
-    'proxyListId',
-    'sourceType',
-    'startedAt',
-    'status',
-    'targetUrl',
-    'teamId',
-    'timeoutCount',
-    'totalInputs',
-    'unhealthyCount',
-    'updatedAt',
-  ] as const
+  static $columns = ['checkedCount', 'createdAt', 'errorMessage', 'finishedAt', 'healthyCount', 'id', 'invalidCount', 'meta', 'mode', 'proxyListId', 'sourceType', 'startedAt', 'status', 'targetUrl', 'teamId', 'timeoutCount', 'totalInputs', 'unhealthyCount', 'updatedAt'] as const
   $columns = HealthCheckRunSchema.$columns
   @column()
   declare checkedCount: number
@@ -107,19 +78,7 @@ export class HealthCheckRunSchema extends BaseModel {
 }
 
 export class HealthResultSchema extends BaseModel {
-  static $columns = [
-    'checkedAt',
-    'createdAt',
-    'errorMessage',
-    'healthy',
-    'id',
-    'latencyMs',
-    'mode',
-    'proxyEntryId',
-    'returnedIp',
-    'statusCode',
-    'updatedAt',
-  ] as const
+  static $columns = ['checkedAt', 'createdAt', 'errorMessage', 'healthy', 'id', 'latencyMs', 'mode', 'proxyEntryId', 'returnedIp', 'statusCode', 'updatedAt'] as const
   $columns = HealthResultSchema.$columns
   @column.dateTime()
   declare checkedAt: DateTime
@@ -146,24 +105,7 @@ export class HealthResultSchema extends BaseModel {
 }
 
 export class ProxyEntrySchema extends BaseModel {
-  static $columns = [
-    'asnNumber',
-    'countryCode',
-    'createdAt',
-    'host',
-    'id',
-    'lastCheckedAt',
-    'latencyMs',
-    'password',
-    'port',
-    'protocol',
-    'proxyListId',
-    'returnedIp',
-    'source',
-    'status',
-    'updatedAt',
-    'username',
-  ] as const
+  static $columns = ['asnNumber', 'countryCode', 'createdAt', 'host', 'id', 'lastCheckedAt', 'latencyMs', 'password', 'port', 'protocol', 'proxyListId', 'returnedIp', 'source', 'status', 'updatedAt', 'username'] as const
   $columns = ProxyEntrySchema.$columns
   @column()
   declare asnNumber: number | null
@@ -200,15 +142,7 @@ export class ProxyEntrySchema extends BaseModel {
 }
 
 export class ProxyListSchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'description',
-    'id',
-    'isActive',
-    'name',
-    'teamId',
-    'updatedAt',
-  ] as const
+  static $columns = ['createdAt', 'description', 'id', 'isActive', 'name', 'teamId', 'updatedAt'] as const
   $columns = ProxyListSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -227,32 +161,10 @@ export class ProxyListSchema extends BaseModel {
 }
 
 export class ProxyUsageLogSchema extends BaseModel {
-  static $columns = [
-    'attemptCount',
-    'countryOverride',
-    'createdAt',
-    'durationMs',
-    'errorMessage',
-    'id',
-    'isTunnel',
-    'proxyEntryId',
-    'proxyListId',
-    'requestMethod',
-    'requestedAt',
-    'responseBytes',
-    'selectedAsn',
-    'selectedCountry',
-    'selectedProtocol',
-    'sessionKey',
-    'statusCode',
-    'success',
-    'targetHost',
-    'targetPort',
-    'targetScheme',
-    'teamId',
-    'updatedAt',
-  ] as const
+  static $columns = ['apiKeyId', 'attemptCount', 'countryOverride', 'createdAt', 'durationMs', 'errorMessage', 'id', 'isTunnel', 'proxyEntryId', 'proxyListId', 'requestMethod', 'requestedAt', 'responseBytes', 'selectedAsn', 'selectedCountry', 'selectedProtocol', 'sessionKey', 'statusCode', 'success', 'targetHost', 'targetPort', 'targetScheme', 'teamId', 'updatedAt'] as const
   $columns = ProxyUsageLogSchema.$columns
+  @column()
+  declare apiKeyId: number | null
   @column()
   declare attemptCount: number
   @column()
@@ -302,19 +214,7 @@ export class ProxyUsageLogSchema extends BaseModel {
 }
 
 export class RotationConfigSchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'excludeAsn',
-    'excludeCountries',
-    'geoTarget',
-    'id',
-    'intervalMinutes',
-    'protocol',
-    'proxyListId',
-    'rotationType',
-    'stickyDurationMinutes',
-    'updatedAt',
-  ] as const
+  static $columns = ['createdAt', 'excludeAsn', 'excludeCountries', 'geoTarget', 'id', 'intervalMinutes', 'protocol', 'proxyListId', 'rotationType', 'stickyDurationMinutes', 'updatedAt'] as const
   $columns = RotationConfigSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -341,31 +241,7 @@ export class RotationConfigSchema extends BaseModel {
 }
 
 export class ScraperRunSchema extends BaseModel {
-  static $columns = [
-    'checkMode',
-    'createdAt',
-    'createdCount',
-    'duplicateCount',
-    'enqueuedCount',
-    'errorMessage',
-    'finishedAt',
-    'id',
-    'invalidCount',
-    'meta',
-    'proxyListId',
-    'scheduleCron',
-    'scrapedTotal',
-    'scraperSourceId',
-    'sourceKey',
-    'sourceName',
-    'startedAt',
-    'status',
-    'targetListName',
-    'teamId',
-    'triggerType',
-    'updatedAt',
-    'updatedCount',
-  ] as const
+  static $columns = ['checkMode', 'createdAt', 'createdCount', 'duplicateCount', 'enqueuedCount', 'errorMessage', 'finishedAt', 'id', 'invalidCount', 'meta', 'proxyListId', 'scheduleCron', 'scrapedTotal', 'scraperSourceId', 'sourceKey', 'sourceName', 'startedAt', 'status', 'targetListName', 'teamId', 'triggerType', 'updatedAt', 'updatedCount'] as const
   $columns = ScraperRunSchema.$columns
   @column()
   declare checkMode: string
@@ -416,19 +292,7 @@ export class ScraperRunSchema extends BaseModel {
 }
 
 export class ScraperSourceSchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'id',
-    'isEnabled',
-    'lastCount',
-    'lastRunAt',
-    'name',
-    'proxyListId',
-    'scheduleCron',
-    'sourceKey',
-    'teamId',
-    'updatedAt',
-  ] as const
+  static $columns = ['createdAt', 'id', 'isEnabled', 'lastCount', 'lastRunAt', 'name', 'proxyListId', 'scheduleCron', 'sourceKey', 'teamId', 'updatedAt'] as const
   $columns = ScraperSourceSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -455,12 +319,14 @@ export class ScraperSourceSchema extends BaseModel {
 }
 
 export class TeamSchema extends BaseModel {
-  static $columns = ['createdAt', 'id', 'name', 'ownerId', 'updatedAt'] as const
+  static $columns = ['createdAt', 'id', 'monthlyQuotaBytes', 'name', 'ownerId', 'updatedAt'] as const
   $columns = TeamSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare monthlyQuotaBytes: bigint | number | null
   @column()
   declare name: string
   @column()
@@ -470,16 +336,7 @@ export class TeamSchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = [
-    'createdAt',
-    'currentTeamId',
-    'email',
-    'emailVerifiedAt',
-    'fullName',
-    'id',
-    'password',
-    'updatedAt',
-  ] as const
+  static $columns = ['createdAt', 'currentTeamId', 'email', 'emailVerifiedAt', 'fullName', 'id', 'password', 'updatedAt'] as const
   $columns = UserSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

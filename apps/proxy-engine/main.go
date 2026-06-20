@@ -10,6 +10,7 @@ import (
 	"github.com/proxy-system/proxy-engine/internal/apikey"
 	"github.com/proxy-system/proxy-engine/internal/gateway"
 	"github.com/proxy-system/proxy-engine/internal/pool"
+	"github.com/proxy-system/proxy-engine/internal/quota"
 	"github.com/proxy-system/proxy-engine/internal/server"
 	"github.com/proxy-system/proxy-engine/internal/session"
 	"github.com/proxy-system/proxy-engine/internal/usage"
@@ -39,12 +40,21 @@ func main() {
 	sel := session.NewSelector(rdb)
 	usageSink := usage.NewSink(pg, log)
 	keyValidator := apikey.New(pg)
-	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, usageSink, log)
+	quotaTracker := quota.New(rdb)
+	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, log)
 
-	// Forward-proxy listener
+	// HTTP forward-proxy listener
 	go func() {
 		if err := gw.ListenAndServe(":" + cfg.GatewayPort); err != nil {
 			log.Fatal().Err(err).Msg("Gateway failed")
+		}
+	}()
+
+	// SOCKS5 inbound listener
+	socks := gateway.NewSocks5Server(gw)
+	go func() {
+		if err := socks.ListenAndServe(":" + cfg.SocksPort); err != nil {
+			log.Error().Err(err).Msg("SOCKS5 listener stopped")
 		}
 	}()
 
@@ -65,6 +75,9 @@ func main() {
 	defer cancel()
 	if err := gw.Shutdown(ctx); err != nil {
 		log.Error().Err(err).Msg("Gateway shutdown error")
+	}
+	if err := socks.Close(); err != nil {
+		log.Error().Err(err).Msg("SOCKS5 shutdown error")
 	}
 	if err := usageSink.Close(ctx); err != nil {
 		log.Error().Err(err).Msg("Usage sink shutdown error")

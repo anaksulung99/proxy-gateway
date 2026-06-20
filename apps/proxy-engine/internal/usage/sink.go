@@ -14,6 +14,7 @@ type Event struct {
 	TeamID           int64
 	ProxyListID      int64
 	ProxyEntryID     int64
+	APIKeyID         int64
 	RequestMethod    string
 	TargetHost       string
 	TargetPort       int
@@ -140,12 +141,12 @@ func (s *Sink) insert(events []Event) {
 				(team_id, proxy_list_id, proxy_entry_id, request_method, target_host, target_port,
 				 target_scheme, is_tunnel, success, status_code, attempt_count, duration_ms,
 				 response_bytes, session_key, country_override, selected_protocol,
-				 selected_country, selected_asn, error_message, requested_at, created_at, updated_at)
+				 selected_country, selected_asn, error_message, requested_at, api_key_id, created_at, updated_at)
 			 VALUES
 				($1, $2, $3, $4, $5, $6,
 				 $7, $8, $9, $10, $11, $12,
 				 $13, $14, $15, $16,
-				 $17, $18, $19, $20, NOW(), NOW())`,
+				 $17, $18, $19, $20, $21, NOW(), NOW())`,
 			nullIntValue(event.TeamID),
 			nullIntValue(event.ProxyListID),
 			nullIntValue(event.ProxyEntryID),
@@ -166,6 +167,7 @@ func (s *Sink) insert(events []Event) {
 			nullIntValue(int64(event.SelectedASN)),
 			nullString(event.ErrorMessage),
 			event.RequestedAt,
+			nullIntValue(event.APIKeyID),
 		)
 	}
 

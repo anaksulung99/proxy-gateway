@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Head, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { usePolling } from '~/composables/usePolling'
 
 interface List {
   id: number
@@ -31,7 +32,7 @@ const props = defineProps<{
     exclusionsLabel: string
     description: string
   }
-  gateway: { host: string; username: string; hasActiveKey: boolean }
+  gateway: { host: string; socksHost: string; username: string; hasActiveKey: boolean }
   entries: any
   filters: any
   stats: { total: number; healthy: number; unhealthy: number; timeout: number; unknown: number }
@@ -57,13 +58,31 @@ const importSummary = computed(() => page.props.flash?.importSummary ?? null)
 const healthyRate = computed(() =>
   props.stats.total > 0 ? Math.round((props.stats.healthy / props.stats.total) * 100) : 0
 )
+
+// Live health status — auto-refresh entries + stats (pauses when tab hidden).
+const { enabled: live, isFetching } = usePolling(['entries', 'stats'], {
+  interval: 4000,
+  enabled: true,
+})
 </script>
 
 <template>
   <Head :title="props.list.name" />
   <AppShell :title="props.list.name" description="Detail daftar proxy">
     <template #actions>
-      <div class="flex gap-2 justify-end">
+      <div class="flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+          :class="live ? 'border-emerald-500/40 text-emerald-600' : 'text-muted-foreground'"
+          @click="live = !live"
+        >
+          <span
+            class="size-2 rounded-full"
+            :class="live ? (isFetching ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500') : 'bg-muted-foreground/40'"
+          />
+          {{ live ? 'Live' : 'Paused' }}
+        </button>
         <AppTooltip content="Edit list" side="bottom">
           <Button variant="outline" size="sm" @click="showEdit = true">
             <Icon icon="lucide:pencil-line" class="mr-1 size-4" />
