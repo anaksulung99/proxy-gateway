@@ -18,6 +18,7 @@ import (
 	"github.com/proxy-system/proxy-engine/internal/filter"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/quota"
+	"github.com/proxy-system/proxy-engine/internal/runtimehealth"
 	"github.com/proxy-system/proxy-engine/internal/session"
 	"github.com/proxy-system/proxy-engine/internal/usage"
 	"github.com/rs/zerolog"
@@ -30,18 +31,19 @@ var hopHeaders = []string{
 }
 
 type Gateway struct {
-	repo   *pool.Repository
-	sel    *session.Selector
-	secret string
-	keys   *apikey.Validator
-	quota  *quota.Quota
-	usage  *usage.Sink
-	log    zerolog.Logger
-	srv    *http.Server
+	repo    *pool.Repository
+	sel     *session.Selector
+	secret  string
+	keys    *apikey.Validator
+	quota   *quota.Quota
+	usage   *usage.Sink
+	runtime *runtimehealth.Tracker
+	log     zerolog.Logger
+	srv     *http.Server
 }
 
-func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, q *quota.Quota, usageSink *usage.Sink, log zerolog.Logger) *Gateway {
-	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, quota: q, usage: usageSink, log: log}
+func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, q *quota.Quota, usageSink *usage.Sink, runtimeTracker *runtimehealth.Tracker, log zerolog.Logger) *Gateway {
+	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, quota: q, usage: usageSink, runtime: runtimeTracker, log: log}
 }
 
 // quotaBlocked reports whether the caller has exhausted its team or key quota.
@@ -242,6 +244,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			lastOutcome, reqErr = g.handleHTTP(w, r, upstream)
 		}
 		if reqErr == nil {
+			g.observeUpstreamSuccess(r.Context(), upstream.ID)
 			g.log.Info().
 				Int64("list", listID).
 				Str("session", sessionID).
@@ -277,6 +280,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		lastErr = reqErr
+		if isUpstreamRuntimeFailure(reqErr) {
+			g.observeUpstreamFailure(r.Context(), cfg.ID, upstream, reqErr)
+		}
 		g.sel.Invalidate(r.Context(), listID, cfg.Rotation, sessionID)
 		remaining = withoutUpstreamID(remaining, upstream.ID)
 		g.log.Warn().
@@ -317,6 +323,20 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorMessage:     lastErrorMessage(lastErr),
 		RequestedAt:      startedAt.UTC(),
 	})
+}
+
+func (g *Gateway) observeUpstreamSuccess(ctx context.Context, upstreamID int64) {
+	if g.runtime == nil {
+		return
+	}
+	g.runtime.ObserveSuccess(ctx, upstreamID)
+}
+
+func (g *Gateway) observeUpstreamFailure(ctx context.Context, listID int64, upstream pool.Upstream, err error) {
+	if g.runtime == nil {
+		return
+	}
+	g.runtime.ObserveFailure(ctx, listID, upstream, err)
 }
 
 // authenticate parses Proxy-Authorization (Basic) and delegates to authorize.
@@ -494,7 +514,7 @@ func (g *Gateway) handleConnect(w http.ResponseWriter, r *http.Request, u pool.U
 
 	upConn, err := dialThroughUpstream(ctx, u, r.Host)
 	if err != nil {
-		return upstreamResult{}, err
+		return upstreamResult{}, wrapUpstreamRuntimeError(err)
 	}
 	defer upConn.Close()
 
@@ -532,7 +552,7 @@ func (g *Gateway) handleHTTP(w http.ResponseWriter, r *http.Request, u pool.Upst
 		}
 		d, err := xproxy.SOCKS5("tcp", upstreamAddr(u), auth, xproxy.Direct)
 		if err != nil {
-			return upstreamResult{}, err
+			return upstreamResult{}, wrapUpstreamRuntimeError(err)
 		}
 		if cd, ok := d.(xproxy.ContextDialer); ok {
 			transport.DialContext = cd.DialContext
@@ -560,7 +580,7 @@ func (g *Gateway) handleHTTP(w http.ResponseWriter, r *http.Request, u pool.Upst
 	}
 	resp, err := client.Do(outReq)
 	if err != nil {
-		return upstreamResult{}, err
+		return upstreamResult{}, wrapUpstreamRuntimeError(err)
 	}
 	defer resp.Body.Close()
 

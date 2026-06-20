@@ -44,6 +44,10 @@ router.get('verify-email/:token', [controllers.Auth, 'verifyEmail']).as('email.v
 router
   .group(() => {
     router.get('', [controllers.Dashboard, 'index']).as('dashboard')
+    router.get('runtime/tasks', [controllers.Dashboard, 'activeTasks']).as('dashboard.tasks')
+    router
+      .get('runtime/quarantine', [controllers.Dashboard, 'runtimeQuarantine'])
+      .as('dashboard.runtimeQuarantine')
 
     // Proxy lists
     router.get('proxy-lists', [controllers.ProxyLists, 'index']).as('proxy-lists.index')
@@ -73,8 +77,11 @@ router
     // Proxy entries (bulk actions)
     router.post('proxy-entries/bulk', [controllers.ProxyEntries, 'bulk']).as('proxy-entries.bulk')
     router
-      .post('proxy-entries/bulk/recheck', [controllers.ProxyEntries, 'reCheckBulk'])
-      .as('proxy-entries.reCheckBulk')
+      .post('proxy-entries/bulk/recheck', [controllers.ProxyEntries, 'runReBulkCheck'])
+      .as('proxy-entries.runReBulkCheck')
+    router
+      .delete('proxy-entries/bulk/delete', [controllers.ProxyEntries, 'deleteManyByStatus'])
+      .as('proxy-entries.deleteManyByStatusPost')
 
     // Gateway usage analytics
     router.get('analytics', [controllers.ProxyUsageAnalytics, 'index']).as('analytics.index')

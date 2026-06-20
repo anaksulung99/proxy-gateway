@@ -90,6 +90,18 @@ const routes = {
     tokens: [{"old":"/app","type":0,"val":"app","end":""}],
     types: placeholder as Registry['dashboard']['types'],
   },
+  'dashboard.tasks': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/runtime/tasks',
+    tokens: [{"old":"/app/runtime/tasks","type":0,"val":"app","end":""},{"old":"/app/runtime/tasks","type":0,"val":"runtime","end":""},{"old":"/app/runtime/tasks","type":0,"val":"tasks","end":""}],
+    types: placeholder as Registry['dashboard.tasks']['types'],
+  },
+  'dashboard.runtimeQuarantine': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/runtime/quarantine',
+    tokens: [{"old":"/app/runtime/quarantine","type":0,"val":"app","end":""},{"old":"/app/runtime/quarantine","type":0,"val":"runtime","end":""},{"old":"/app/runtime/quarantine","type":0,"val":"quarantine","end":""}],
+    types: placeholder as Registry['dashboard.runtimeQuarantine']['types'],
+  },
   'proxy-lists.index': {
     methods: ["GET","HEAD"],
     pattern: '/app/proxy-lists',
@@ -162,11 +174,17 @@ const routes = {
     tokens: [{"old":"/app/proxy-entries/bulk","type":0,"val":"app","end":""},{"old":"/app/proxy-entries/bulk","type":0,"val":"proxy-entries","end":""},{"old":"/app/proxy-entries/bulk","type":0,"val":"bulk","end":""}],
     types: placeholder as Registry['proxy-entries.bulk']['types'],
   },
-  'proxy-entries.reCheckBulk': {
+  'proxy-entries.runReBulkCheck': {
     methods: ["POST"],
     pattern: '/app/proxy-entries/bulk/recheck',
     tokens: [{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"app","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"proxy-entries","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"bulk","end":""},{"old":"/app/proxy-entries/bulk/recheck","type":0,"val":"recheck","end":""}],
-    types: placeholder as Registry['proxy-entries.reCheckBulk']['types'],
+    types: placeholder as Registry['proxy-entries.runReBulkCheck']['types'],
+  },
+  'proxy-entries.deleteManyByStatusPost': {
+    methods: ["DELETE"],
+    pattern: '/app/proxy-entries/bulk/delete',
+    tokens: [{"old":"/app/proxy-entries/bulk/delete","type":0,"val":"app","end":""},{"old":"/app/proxy-entries/bulk/delete","type":0,"val":"proxy-entries","end":""},{"old":"/app/proxy-entries/bulk/delete","type":0,"val":"bulk","end":""},{"old":"/app/proxy-entries/bulk/delete","type":0,"val":"delete","end":""}],
+    types: placeholder as Registry['proxy-entries.deleteManyByStatusPost']['types'],
   },
   'analytics.index': {
     methods: ["GET","HEAD"],

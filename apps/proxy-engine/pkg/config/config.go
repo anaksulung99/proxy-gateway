@@ -6,16 +6,18 @@ import (
 )
 
 type Config struct {
-	Env            string
-	Port           string // admin/health (Fiber)
-	GatewayPort    string // HTTP forward-proxy listener
-	SocksPort      string // SOCKS5 inbound listener
-	GatewaySecret  string // password clients must present
-	Workers        int
-	InternalSecret string
-	Redis          RedisConfig
-	Postgres       PostgresConfig
-	RabbitMQ       RabbitMQConfig
+	Env                     string
+	Port                    string // admin/health (Fiber)
+	GatewayPort             string // HTTP forward-proxy listener
+	SocksPort               string // SOCKS5 inbound listener
+	GatewaySecret           string // password clients must present
+	Workers                 int
+	InternalSecret          string
+	RuntimeFailureThreshold int
+	RuntimeFailureWindowSec int
+	Redis                   RedisConfig
+	Postgres                PostgresConfig
+	RabbitMQ                RabbitMQConfig
 }
 
 type RedisConfig struct {
@@ -49,19 +51,23 @@ func Load() *Config {
 	viper.SetDefault("SOCKS_PORT", "1080")
 	viper.SetDefault("GATEWAY_SECRET", "changeme")
 	viper.SetDefault("WORKERS", 50)
+	viper.SetDefault("RUNTIME_FAILURE_THRESHOLD", 2)
+	viper.SetDefault("RUNTIME_FAILURE_WINDOW_SEC", 300)
 	viper.SetDefault("REDIS_HOST", "127.0.0.1")
 	viper.SetDefault("REDIS_PORT", "6379")
 	viper.SetDefault("DB_HOST", "127.0.0.1")
 	viper.SetDefault("DB_PORT", "5432")
 
 	return &Config{
-		Env:            viper.GetString("GO_ENV"),
-		Port:           viper.GetString("PORT"),
-		GatewayPort:    viper.GetString("GATEWAY_PORT"),
-		SocksPort:      viper.GetString("SOCKS_PORT"),
-		GatewaySecret:  viper.GetString("GATEWAY_SECRET"),
-		Workers:        viper.GetInt("WORKERS"),
-		InternalSecret: viper.GetString("INTERNAL_API_SECRET"),
+		Env:                     viper.GetString("GO_ENV"),
+		Port:                    viper.GetString("PORT"),
+		GatewayPort:             viper.GetString("GATEWAY_PORT"),
+		SocksPort:               viper.GetString("SOCKS_PORT"),
+		GatewaySecret:           viper.GetString("GATEWAY_SECRET"),
+		Workers:                 viper.GetInt("WORKERS"),
+		InternalSecret:          viper.GetString("INTERNAL_API_SECRET"),
+		RuntimeFailureThreshold: viper.GetInt("RUNTIME_FAILURE_THRESHOLD"),
+		RuntimeFailureWindowSec: viper.GetInt("RUNTIME_FAILURE_WINDOW_SEC"),
 		Redis: RedisConfig{
 			Host:     viper.GetString("REDIS_HOST"),
 			Port:     viper.GetString("REDIS_PORT"),

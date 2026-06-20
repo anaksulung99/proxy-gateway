@@ -2,6 +2,7 @@ import ProxyList from '#models/proxy_list'
 import ProxyEntry from '#models/proxy_entry'
 import healthClient from '#services/health_check_client_service'
 import proxyEngineClient from '#services/proxy_engine_client_service'
+import publisher, { type HealthCheckJob } from '#services/rabbitmq_publisher_service'
 import { bulkActionValidator, recheckBulkValidator } from '#validators/proxy_entry'
 import type { HttpContext } from '@adonisjs/core/http'
 
@@ -40,31 +41,11 @@ export default class ProxyEntriesController {
       return response.redirect().back()
     }
 
-    // recheck — run synchronously against the Go health-checker and persist
     try {
-      const summary = await healthClient.checkEntries(entries, 'request', {
-        teamId: team.id,
-        proxyListId: list.id,
-      })
-      await proxyEngineClient.invalidateLists([list.id])
-      session.flash('healthCheckRunSummary', {
-        runId: summary.runId,
-        sourceType: 'proxy_list_bulk',
-        status: 'success',
-        mode: summary.mode,
-        targetUrl: summary.targetUrl,
-        totalInputs: summary.checked + summary.invalid,
-        checked: summary.checked,
-        healthy: summary.healthy,
-        unhealthy: summary.unhealthy,
-        timeout: summary.timeout,
-        invalid: summary.invalid,
-        proxyListId: list.id,
-        finishedAt: summary.finishedAt ?? new Date().toISOString(),
-      })
+      const queued = await this.enqueueBulkRecheck(team.id, list, entries)
       session.flash(
         'success',
-        `Checked ${summary.checked}: ${summary.healthy} healthy, ${summary.unhealthy} unhealthy, ${summary.timeout} timeout`
+        `Queued ${queued.enqueued} selected proxies untuk health check pada list ${list.name}`
       )
     } catch (err) {
       session.flash('error', (err as Error).message)
@@ -135,7 +116,7 @@ export default class ProxyEntriesController {
   /**
    * Recheck all proxy list with status Timeout, Unhealthy or Unchecked
    */
-  async reCheckBulk({ request, response, team, session }: HttpContext) {
+  async runReBulkCheck({ request, response, team, session }: HttpContext) {
     const payload = await request.validateUsing(recheckBulkValidator)
 
     const list = await ProxyList.query()
@@ -153,33 +134,91 @@ export default class ProxyEntriesController {
     }
 
     try {
-      const summary = await healthClient.checkEntries(entries, 'request', {
-        teamId: team.id,
-        proxyListId: list.id,
-      })
-      await proxyEngineClient.invalidateLists([list.id])
-      session.flash('healthCheckRunSummary', {
-        runId: summary.runId,
-        sourceType: 'proxy_list_bulk',
-        status: 'success',
-        mode: summary.mode,
-        targetUrl: summary.targetUrl,
-        totalInputs: summary.checked + summary.invalid,
-        checked: summary.checked,
-        healthy: summary.healthy,
-        unhealthy: summary.unhealthy,
-        timeout: summary.timeout,
-        invalid: summary.invalid,
-        proxyListId: list.id,
-        finishedAt: summary.finishedAt ?? new Date().toISOString(),
-      })
+      const queued = await this.enqueueBulkRecheck(team.id, list, entries, payload.status)
       session.flash(
         'success',
-        `Checked ${summary.checked}: ${summary.healthy} healthy, ${summary.unhealthy} unhealthy, ${summary.timeout} timeout`
+        `Queued ${queued.enqueued} ${payload.status} proxies untuk health check pada list ${list.name}`
       )
     } catch (error) {
       session.flash('error', (error as Error).message)
     }
+
+    return response.redirect().back()
+  }
+
+  private async enqueueBulkRecheck(
+    teamId: number,
+    list: ProxyList,
+    entries: ProxyEntry[],
+    requestedStatus?: string
+  ) {
+    const run = await healthClient.createQueuedRun({
+      teamId,
+      proxyListId: list.id,
+      mode: 'request',
+      totalInputs: entries.length,
+      meta: {
+        trigger: 'manual_recheck',
+        listName: list.name,
+        stage: 'queued',
+        requestedStatus: requestedStatus ?? 'selected',
+      },
+    })
+
+    const jobs: HealthCheckJob[] = entries.map((entry) => ({
+      proxyEntryId: entry.id,
+      runId: run.id,
+      host: entry.host,
+      port: entry.port,
+      protocol: entry.protocol,
+      username: entry.username,
+      password: entry.password,
+      mode: 'request',
+    }))
+
+    const { enqueued } = await publisher.enqueueHealthChecks(jobs)
+    if (enqueued === 0) {
+      await healthClient.markRunError(
+        run.id,
+        'Bulk re-check jobs failed to enqueue (broker unreachable or queue disabled)'
+      )
+      throw new Error('Bulk re-check tidak terkirim ke health-checker queue')
+    }
+
+    return {
+      runId: run.id,
+      enqueued,
+    }
+  }
+
+  /**
+   * Recheck all proxy list with status Timeout, Unhealthy or Unchecked
+   */
+  async deleteManyByStatus({ request, response, team, session }: HttpContext) {
+    const payload = await request.validateUsing(recheckBulkValidator)
+
+    const list = await ProxyList.query()
+      .where('team_id', team.id)
+      .where('id', payload.listId)
+      .firstOrFail()
+
+    const entries = await ProxyEntry.query()
+      .where('proxy_list_id', list.id)
+      .where('status', payload.status)
+
+    if (entries.length === 0) {
+      session.flash('error', `No ${payload.status} entries found in this list`)
+      return response.redirect().back()
+    }
+
+    await ProxyEntry.query()
+      .whereIn(
+        'id',
+        entries.map((e) => e.id)
+      )
+      .delete()
+
+    session.flash('success', `Deleted ${entries.length} ${payload.status} proxy entries`)
 
     return response.redirect().back()
   }

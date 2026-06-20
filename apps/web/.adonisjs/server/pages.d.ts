@@ -28,5 +28,6 @@ declare module '@adonisjs/inertia/types' {
     'settings/team': ExtractProps<(typeof import('../../inertia/pages/settings/team.vue'))['default']>
     'tools/index': ExtractProps<(typeof import('../../inertia/pages/tools/index.vue'))['default']>
     'tools/show': ExtractProps<(typeof import('../../inertia/pages/tools/show.vue'))['default']>
+    'dashboard/runtime_quarantine': ExtractProps<(typeof import('../../inertia/pages/dashboard/runtime_quarantine.vue'))['default']>
   }
 }

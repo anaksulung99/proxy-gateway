@@ -79,6 +79,7 @@ declare module 'vue' {
     ChartStyle: typeof import('./components/ui/chart/ChartStyle.vue')['default']
     ChartTooltipContent: typeof import('./components/ui/chart/ChartTooltipContent.vue')['default']
     Checkbox: typeof import('./components/ui/checkbox/Checkbox.vue')['default']
+    CleanUpDialog: typeof import('./components/proxy/CleanUpDialog.vue')['default']
     Collapsible: typeof import('./components/ui/collapsible/Collapsible.vue')['default']
     CollapsibleContent: typeof import('./components/ui/collapsible/CollapsibleContent.vue')['default']
     CollapsibleTrigger: typeof import('./components/ui/collapsible/CollapsibleTrigger.vue')['default']

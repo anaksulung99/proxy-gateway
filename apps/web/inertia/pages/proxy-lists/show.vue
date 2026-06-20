@@ -119,6 +119,7 @@ const { enabled: live, isFetching } = usePolling(['entries', 'stats'], {
         </AppTooltip>
         <ReCheckDialog :list-id="props.list.id" />
         <ImportWizard :list-id="props.list.id" />
+        <CleanUpDialog :list-id="props.list.id" />
       </div>
     </template>
 

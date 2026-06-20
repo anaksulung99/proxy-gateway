@@ -4,6 +4,7 @@ import { Head, router, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { usePolling } from '~/composables/usePolling'
+import { useNotificationsStore } from '~/stores/notifications'
 
 interface Source {
   id: number
@@ -36,6 +37,8 @@ interface Source {
     }>
   }
 }
+
+type HealthStatus = 'idle' | 'healthy' | 'degraded' | 'error' | 'misconfigured'
 
 interface RecentRun {
   id: number
@@ -99,6 +102,7 @@ const ANY = '__all__'
 const running = ref<Set<number>>(new Set())
 const runningAll = ref(false)
 const runMode = ref<'request' | 'playwright' | 'crawlee'>('request')
+const notifications = useNotificationsStore()
 const scheduleDrafts = reactive<Record<number, string>>({})
 const filterState = reactive({
   healthStatus: props.filters.healthStatus ?? ANY,
@@ -114,6 +118,9 @@ for (const source of props.sources) {
 }
 
 const scraperRunSummary = computed(() => page.props.flash?.scraperRunSummary ?? null)
+const enabledRunnableCount = computed(
+  () => props.sources.filter((source) => source.isEnabled && source.proxyListId).length
+)
 
 // Live refresh while a scrape is running (manual, all, or scheduled in-flight).
 const anyRunning = computed(
@@ -171,6 +178,12 @@ function saveSchedule(source: Source) {
 }
 
 function run(source: Source) {
+  const taskKey = `scraper:source:${source.id}`
+  notifications.startLocalTask(
+    taskKey,
+    `Scraper ${source.name} sedang berjalan`,
+    `${String(runMode.value).toUpperCase()} mode | target list ${source.proxyListId ?? 'belum dipilih'}`
+  )
   running.value.add(source.id)
   running.value = new Set(running.value)
   router.post(
@@ -179,6 +192,7 @@ function run(source: Source) {
     {
       preserveScroll: true,
       onFinish: () => {
+        notifications.finishLocalTask(taskKey)
         running.value.delete(source.id)
         running.value = new Set(running.value)
       },
@@ -187,6 +201,12 @@ function run(source: Source) {
 }
 
 function runEnabledSources() {
+  const taskKey = 'scraper:run-enabled'
+  notifications.startLocalTask(
+    taskKey,
+    'Scraper enabled sources sedang berjalan',
+    `${enabledRunnableCount.value} source | ${String(runMode.value).toUpperCase()} mode`
+  )
   runningAll.value = true
   router.post(
     '/app/scraper/run-enabled',
@@ -194,6 +214,7 @@ function runEnabledSources() {
     {
       preserveScroll: true,
       onFinish: () => {
+        notifications.finishLocalTask(taskKey)
         runningAll.value = false
       },
     }
@@ -234,6 +255,55 @@ function relativeAge(value: string | null) {
   if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`
   return `${Math.floor(diffMs / day)}d ago`
 }
+
+function isCriticalSource(source: Source) {
+  return (
+    source.health?.status === 'error' ||
+    source.health?.status === 'misconfigured' ||
+    (source.health?.consecutiveFailures ?? 0) >= 3
+  )
+}
+
+function rowClass(source: Source) {
+  if (source.health?.status === 'misconfigured' || source.health?.status === 'error') {
+    return 'bg-red-500/5 hover:bg-red-500/10 border-l-2 border-l-red-500/70'
+  }
+
+  if ((source.health?.consecutiveFailures ?? 0) >= 3) {
+    return 'bg-amber-500/5 hover:bg-amber-500/10 border-l-2 border-l-amber-500/70'
+  }
+
+  return ''
+}
+
+const visibleSummary = computed(() => {
+  const counts: Record<HealthStatus, number> = {
+    idle: 0,
+    healthy: 0,
+    degraded: 0,
+    error: 0,
+    misconfigured: 0,
+  }
+
+  let critical = 0
+
+  for (const source of props.sources) {
+    const status = (source.health?.status ?? 'idle') as HealthStatus
+    counts[status] += 1
+
+    if (isCriticalSource(source)) critical += 1
+  }
+
+  return {
+    total: props.sources.length,
+    critical,
+    degraded: counts.degraded,
+    healthy: counts.healthy,
+    idle: counts.idle,
+    error: counts.error,
+    misconfigured: counts.misconfigured,
+  }
+})
 </script>
 
 <template>
@@ -277,7 +347,9 @@ function relativeAge(value: string | null) {
           </div>
           <div class="flex items-center gap-2">
             <Select v-model="filterState.healthStatus">
-              <SelectTrigger class="w-48"><SelectValue placeholder="All health states" /></SelectTrigger>
+              <SelectTrigger class="w-48"
+                ><SelectValue placeholder="All health states"
+              /></SelectTrigger>
               <SelectContent>
                 <SelectItem :value="ANY">All health states</SelectItem>
                 <SelectItem value="healthy">Healthy</SelectItem>
@@ -288,7 +360,7 @@ function relativeAge(value: string | null) {
               </SelectContent>
             </Select>
             <Button size="sm" @click="applyHealthFilter">
-              <Icon icon="lucide:filter" class="mr-2 size-4" /> Apply
+              <Icon icon="lucide:filter" class="size-4" /> Apply
             </Button>
             <Button
               v-if="filterState.healthStatus !== ANY"
@@ -366,6 +438,16 @@ function relativeAge(value: string | null) {
             </CardDescription>
           </div>
 
+          <div class="flex flex-wrap gap-2">
+            <Badge variant="destructive"> {{ visibleSummary.critical }} critical </Badge>
+            <Badge variant="secondary"> {{ visibleSummary.degraded }} degraded </Badge>
+            <Badge variant="outline"> {{ visibleSummary.healthy }} healthy </Badge>
+            <Badge variant="outline"> {{ visibleSummary.idle }} idle </Badge>
+            <span class="self-center text-xs text-muted-foreground">
+              {{ visibleSummary.total }} source shown
+            </span>
+          </div>
+
           <div class="space-y-4">
             <div class="flex flex-col md:flex-row justify-between items-center gap-2 w-full">
               <div class="space-y-1 w-full mb-0 md:mb-4">
@@ -391,35 +473,38 @@ function relativeAge(value: string | null) {
                 />
                 {{ runningAll ? 'Running enabled…' : 'Run enabled sources' }}
               </Button>
-              <Button variant="outline" as-child>
+              <Button class="bg-cyan-600 hover:bg-cyan-700 text-white" size="sm" as-child>
                 <Link href="/app/scraper/logs">
-                  <Icon icon="lucide:history" class="mr-2 size-4" /> View logs
+                  <Icon icon="lucide:history" class="size-4" /> View logs
                 </Link>
               </Button>
             </div>
           </div>
         </div>
       </CardHeader>
-      <CardContent class="p-4 overflow-auto max-w-7xl rounded-lg">
+      <CardContent class="p-4 overflow-x-auto rounded-lg">
         <Table class="table-auto">
           <TableHeader>
             <TableRow>
-              <TableHead class="px-4 py-3 font-medium">Source</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Availability</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Health</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Reliability</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Enabled</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Target list</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Schedule</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Last run</TableHead>
-              <TableHead class="px-4 py-3 font-medium">Last count</TableHead>
-              <TableHead class="px-4 py-3 font-medium text-right">Action</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Availability</TableHead>
+              <TableHead>Health</TableHead>
+              <TableHead>Reliability</TableHead>
+              <TableHead>Enabled</TableHead>
+              <TableHead>Target list</TableHead>
+              <TableHead>Schedule</TableHead>
+              <TableHead>Last run</TableHead>
+              <TableHead>Last count</TableHead>
+              <TableHead>Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="s in sources" :key="s.id">
+            <TableRow v-for="s in sources" :key="s.id" :class="rowClass(s)">
               <TableCell>
-                <div class="font-medium">{{ s.name }}</div>
+                <div class="flex items-center gap-2">
+                  <div class="font-medium">{{ s.name }}</div>
+                  <Badge v-if="isCriticalSource(s)" variant="destructive">Needs attention</Badge>
+                </div>
                 <div class="text-xs text-muted-foreground">{{ s.sourceKey }}</div>
               </TableCell>
               <TableCell>
@@ -427,7 +512,7 @@ function relativeAge(value: string | null) {
                   {{ s.availability === 'available' ? 'Reachable' : 'Unavailable' }}
                 </Badge>
               </TableCell>
-              <TableCell class="min-w-56">
+              <TableCell>
                 <div v-if="s.health" class="space-y-2">
                   <div class="flex items-center gap-2">
                     <Badge
@@ -458,11 +543,13 @@ function relativeAge(value: string | null) {
                 </div>
                 <span v-else class="text-xs text-muted-foreground">No source-health data yet</span>
               </TableCell>
-              <TableCell class="min-w-48">
+              <TableCell>
                 <div v-if="s.health" class="space-y-1 text-xs text-muted-foreground">
                   <div>
                     Last success:
-                    <span class="font-medium text-foreground">{{ fmtDate(s.health.lastSuccessAt) }}</span>
+                    <span class="font-medium text-foreground">{{
+                      fmtDate(s.health.lastSuccessAt)
+                    }}</span>
                   </div>
                   <div>
                     <Badge
@@ -480,7 +567,9 @@ function relativeAge(value: string | null) {
                   </div>
                   <div>
                     Consecutive failures:
-                    <span class="font-medium text-foreground">{{ s.health.consecutiveFailures }}</span>
+                    <span class="font-medium text-foreground">{{
+                      s.health.consecutiveFailures
+                    }}</span>
                   </div>
                 </div>
                 <span v-else class="text-xs text-muted-foreground">No reliability data yet</span>
@@ -519,9 +608,9 @@ function relativeAge(value: string | null) {
                 </div>
                 <div class="mt-1 text-xs text-muted-foreground">{{ s.cronLabel }}</div>
               </TableCell>
-              <TableCell class="text-xs text-muted-foreground">{{
-                fmtDate(s.lastRunAt)
-              }}</TableCell>
+              <TableCell class="text-xs text-muted-foreground">
+                {{ fmtDate(s.lastRunAt) }}
+              </TableCell>
               <TableCell>{{ s.lastCount }}</TableCell>
               <TableCell class="text-right">
                 <div class="flex items-center justify-end gap-2">
@@ -557,13 +646,13 @@ function relativeAge(value: string | null) {
               Histori run terbaru dari aksi manual, batch, maupun scheduler otomatis.
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" as-child>
+          <Button class="bg-cyan-600 hover:bg-cyan-700 text-white" size="sm" as-child>
             <Link href="/app/scraper/logs">Open full history</Link>
           </Button>
         </div>
       </CardHeader>
-      <CardContent class="py-0 px-2 space-y-4">
-        <Table>
+      <CardContent class="py-2 space-y-4 overflow-x-auto">
+        <Table class="table-auto">
           <TableHeader>
             <TableRow>
               <TableHead>Source</TableHead>
@@ -581,16 +670,16 @@ function relativeAge(value: string | null) {
               </TableCell>
             </TableRow>
             <TableRow v-for="rn in recentRuns.data" :key="rn.id">
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <div class="font-medium">{{ rn.sourceName }}</div>
                 <div class="text-xs text-muted-foreground">
                   {{ rn.sourceKey }} → {{ rn.targetListName ?? 'No target list' }}
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <Badge variant="outline" class="uppercase">{{ rn.triggerType }}</Badge>
               </TableCell>
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <Badge
                   :variant="
                     rn.status === 'success'
@@ -603,10 +692,10 @@ function relativeAge(value: string | null) {
                   {{ rn.status }}
                 </Badge>
               </TableCell>
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <Badge variant="secondary" class="uppercase">{{ rn.checkMode }}</Badge>
               </TableCell>
-              <TableCell>
+              <TableCell class="max-w-20 whitespace-normal">
                 <div class="text-sm">
                   {{ rn.scrapedTotal }} scraped · {{ rn.createdCount }} new ·
                   {{ rn.updatedCount }}
@@ -617,7 +706,7 @@ function relativeAge(value: string | null) {
                   <span v-if="rn.errorMessage">· {{ rn.errorMessage }}</span>
                 </div>
               </TableCell>
-              <TableCell class="text-xs text-muted-foreground">
+              <TableCell class="text-xs text-muted-foreground max-w-20 whitespace-normal">
                 {{ fmtDate(rn.startedAt) }}
               </TableCell>
             </TableRow>

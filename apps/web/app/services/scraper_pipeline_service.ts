@@ -140,11 +140,26 @@ export class ScraperPipelineService {
       sourceName: source.name,
       targetListName: list.name,
       scheduleCron: source.scheduleCron,
+      meta: {
+        stage: 'scraping',
+        stageLabel: 'Fetching source data',
+        progressCurrent: 1,
+        progressTotal: 3,
+      },
       startedAt,
     })
 
     try {
       const scraped = await scraperClient.scrape([source.sourceKey])
+      run.scrapedTotal = scraped.total
+      run.meta = {
+        stage: 'importing',
+        stageLabel: `Importing ${scraped.total} proxies`,
+        progressCurrent: 2,
+        progressTotal: 3,
+      }
+      await run.save()
+
       const raw = this.buildImportBlob(scraped.proxies)
       const importSummary: ImportSummary = raw
         ? await importService.importToList(list, raw, 'http', 'scrape', requestedMode)
@@ -157,6 +172,7 @@ export class ScraperPipelineService {
             created: 0,
             updated: 0,
             enqueued: 0,
+            autoCheckRunId: null,
           }
 
       source.lastCount = scraped.total
@@ -170,7 +186,14 @@ export class ScraperPipelineService {
       run.invalidCount = importSummary.invalid
       run.duplicateCount = importSummary.duplicatesInBatch
       run.enqueuedCount = importSummary.enqueued
-      run.meta = scraped.bySource
+      run.meta = {
+        stage: 'completed',
+        stageLabel: 'Scraper finished',
+        progressCurrent: 3,
+        progressTotal: 3,
+        autoCheckRunId: importSummary.autoCheckRunId,
+        bySource: scraped.bySource,
+      }
       run.finishedAt = source.lastRunAt
       await run.save()
 

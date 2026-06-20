@@ -1,25 +1,17 @@
 <script lang="ts" setup>
-import { router } from '@inertiajs/vue3'
+import type { Data } from '@generated/data'
+import { router, usePage } from '@inertiajs/vue3'
+import { Link } from '@adonisjs/inertia/vue'
 import { useSidebar } from '@/components/ui/sidebar'
-import { BadgeCheck, Shield, LogOut, ChevronsUpDown, KeyRoundIcon } from '@lucide/vue'
+import { LogOut, ChevronsUpDown, KeyRoundIcon } from '@lucide/vue'
 
-type UserProfile = {
-  email?: string | null
-  profile?: {
-    name?: string | null
-    email?: string | null
-  } | null
-}
-
-const props = defineProps<{
-  user: UserProfile | null
-}>()
-
+const page = usePage<Data.SharedProps>()
 const { isMobile } = useSidebar()
 
-const displayName = computed(() => props.user?.profile?.name || props.user?.email || 'User')
+const user = computed(() => page.props.user)
+const displayName = computed(() => user.value?.fullName || user.value?.email || 'User')
 const displayInitials = computed(() => displayName.value.slice(0, 2).toUpperCase())
-const displayEmail = computed(() => props.user?.profile?.email || props.user?.email || 'Email')
+const displayEmail = computed(() => user.value?.email || 'Email')
 
 function handleSignOut() {
   router.post('/logout')
@@ -69,24 +61,12 @@ function handleSignOut() {
           <DropdownMenuSeparator />
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <RouterLink to="/app/accounts/profile">
-              <DropdownMenuItem>
-                <BadgeCheck />
-                Account
-              </DropdownMenuItem>
-            </RouterLink>
-            <RouterLink to="/app/accounts/security">
-              <DropdownMenuItem>
-                <Shield />
-                Security
-              </DropdownMenuItem>
-            </RouterLink>
-            <RouterLink to="/app/accounts/license">
+            <Link href="/app/settings/api-keys">
               <DropdownMenuItem>
                 <KeyRoundIcon />
-                License
+                API Keys
               </DropdownMenuItem>
-            </RouterLink>
+            </Link>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" @click="handleSignOut">

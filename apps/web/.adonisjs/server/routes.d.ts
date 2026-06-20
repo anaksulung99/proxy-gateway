@@ -18,6 +18,8 @@ export type ScannedRoutes = {
     'email.resend': { paramsTuple?: []; params?: {} }
     'email.verify': { paramsTuple: [ParamValue]; params: {'token': ParamValue} }
     'dashboard': { paramsTuple?: []; params?: {} }
+    'dashboard.tasks': { paramsTuple?: []; params?: {} }
+    'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.store': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -30,7 +32,8 @@ export type ScannedRoutes = {
     'proxy-lists.import': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-entries.bulk': { paramsTuple?: []; params?: {} }
-    'proxy-entries.reCheckBulk': { paramsTuple?: []; params?: {} }
+    'proxy-entries.runReBulkCheck': { paramsTuple?: []; params?: {} }
+    'proxy-entries.deleteManyByStatusPost': { paramsTuple?: []; params?: {} }
     'analytics.index': { paramsTuple?: []; params?: {} }
     'analytics.export': { paramsTuple?: []; params?: {} }
     'analytics.deleteManyPost': { paramsTuple?: []; params?: {} }
@@ -61,6 +64,8 @@ export type ScannedRoutes = {
     'email.notice': { paramsTuple?: []; params?: {} }
     'email.verify': { paramsTuple: [ParamValue]; params: {'token': ParamValue} }
     'dashboard': { paramsTuple?: []; params?: {} }
+    'dashboard.tasks': { paramsTuple?: []; params?: {} }
+    'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -81,6 +86,8 @@ export type ScannedRoutes = {
     'email.notice': { paramsTuple?: []; params?: {} }
     'email.verify': { paramsTuple: [ParamValue]; params: {'token': ParamValue} }
     'dashboard': { paramsTuple?: []; params?: {} }
+    'dashboard.tasks': { paramsTuple?: []; params?: {} }
+    'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -104,7 +111,7 @@ export type ScannedRoutes = {
     'proxy-lists.rotationPost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.import': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-entries.bulk': { paramsTuple?: []; params?: {} }
-    'proxy-entries.reCheckBulk': { paramsTuple?: []; params?: {} }
+    'proxy-entries.runReBulkCheck': { paramsTuple?: []; params?: {} }
     'tools.check': { paramsTuple?: []; params?: {} }
     'scraper.updatePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.run': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -121,6 +128,7 @@ export type ScannedRoutes = {
   DELETE: {
     'proxy-lists.bulkDestroy': { paramsTuple?: []; params?: {} }
     'proxy-lists.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'proxy-entries.deleteManyByStatusPost': { paramsTuple?: []; params?: {} }
     'analytics.deleteManyPost': { paramsTuple?: []; params?: {} }
     'tools.deleteManyPost': { paramsTuple?: []; params?: {} }
     'scraper.deleteManyPost': { paramsTuple?: []; params?: {} }

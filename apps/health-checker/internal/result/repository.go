@@ -30,9 +30,10 @@ func classify(res checker.CheckResult) string {
 	return "unhealthy"
 }
 
-// Save persists a check outcome: updates the proxy_entries row and appends a
-// health_results record. Runs in a single transaction.
-func (r *Repository) Save(ctx context.Context, proxyEntryID int64, res checker.CheckResult) error {
+// Save persists a check outcome: updates the proxy_entries row, appends a
+// health_results record, and advances an optional health_check_runs aggregate.
+// Runs in a single transaction.
+func (r *Repository) Save(ctx context.Context, runID int64, proxyEntryID int64, res checker.CheckResult) error {
 	status := classify(res)
 
 	var latency *int64
@@ -82,6 +83,44 @@ func (r *Repository) Save(ctx context.Context, proxyEntryID int64, res checker.C
 		proxyEntryID, string(res.Mode), res.Healthy, latency, ip, statusCode, errMsg, now,
 	); err != nil {
 		return err
+	}
+
+	if runID > 0 {
+		healthyInc := 0
+		unhealthyInc := 0
+		timeoutInc := 0
+		switch status {
+		case "healthy":
+			healthyInc = 1
+		case "timeout":
+			timeoutInc = 1
+		default:
+			unhealthyInc = 1
+		}
+
+		if _, err := tx.Exec(ctx,
+			`UPDATE health_check_runs
+			   SET checked_count = checked_count + 1,
+			       healthy_count = healthy_count + $2,
+			       unhealthy_count = unhealthy_count + $3,
+			       timeout_count = timeout_count + $4,
+			       status = CASE
+			         WHEN status = 'error' THEN status
+			         WHEN checked_count + 1 >= total_inputs THEN 'success'
+			         ELSE status
+			       END,
+			       finished_at = CASE
+			         WHEN status = 'error' THEN finished_at
+			         WHEN checked_count + 1 >= total_inputs THEN $5
+			         ELSE finished_at
+			       END,
+			       meta = jsonb_set(COALESCE(meta, '{}'::jsonb), '{stage}', '"processing"'::jsonb, true),
+			       updated_at = $5
+			 WHERE id = $1`,
+			runID, healthyInc, unhealthyInc, timeoutInc, now,
+		); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)

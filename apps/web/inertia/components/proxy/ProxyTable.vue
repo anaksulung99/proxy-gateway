@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
+import { useNotificationsStore } from '~/stores/notifications'
 
 interface Entry {
   id: number
@@ -34,6 +35,7 @@ const props = defineProps<{
   }
 }>()
 const { warning } = useGlobalAlert()
+const notifications = useNotificationsStore()
 
 const ANY = '__any__'
 const filters = reactive({
@@ -110,7 +112,28 @@ function bulk(action: 'delete' | 'recheck') {
         )
       }
     )
+    return
   }
+
+  const taskKey = `recheck:selected:list:${props.listId}`
+  notifications.startLocalTask(
+    taskKey,
+    'Bulk health check sedang berjalan',
+    `${ids.length} proxy terpilih pada list #${props.listId} sedang diantrikan`
+  )
+  router.post(
+    '/app/proxy-entries/bulk',
+    { listId: props.listId, action, ids },
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        selected.value = new Set()
+      },
+      onFinish: () => {
+        notifications.finishLocalTask(taskKey)
+      },
+    }
+  )
 }
 
 const exportUrl = computed(() => {

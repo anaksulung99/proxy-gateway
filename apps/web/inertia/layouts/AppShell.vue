@@ -7,13 +7,13 @@ const page = usePage<Data.SharedProps>()
 </script>
 
 <template>
-  <SidebarProvider>
+  <SidebarProvider class="overflow-x-hidden">
     <AppSidebar />
-    <SidebarInset>
+    <SidebarInset class="min-w-0 max-w-full overflow-x-hidden">
       <header
-        class="sticky top-0 flex z-999 shrink-0 items-center gap-2 border-b-2 border-neutral-300 dark:border-neutral-800 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-background py-3 data-state:close:py-3"
+        class="sticky top-0 z-30 flex min-w-0 shrink-0 items-center gap-2 border-b-2 border-neutral-300 bg-background py-3 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 data-state:close:py-3 dark:border-neutral-800"
       >
-        <div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+        <div class="flex min-w-0 w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-2 data-[orientation=vertical]:h-4" />
           <Breadcrumb>
@@ -48,19 +48,25 @@ const page = usePage<Data.SharedProps>()
           </div>
         </div>
       </header>
-      <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div class="flex h-screen w-full flex-col">
-          <div class="mx-auto h-full w-full flex-1 overflow-y-auto p-6 space-y-6">
-            <div class="flex flex-col md:flex-row md:justify-between gap-4">
-              <div class="text-start flex flex-col justify-start">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-3 pt-0 sm:p-4 sm:pt-0">
+        <div class="flex min-h-0 min-w-0 w-full flex-1 flex-col">
+          <div
+            class="mx-auto min-h-0 min-w-0 w-full max-w-360 flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-3 sm:p-6"
+          >
+            <div class="flex min-w-0 flex-col gap-4 md:flex-row md:justify-between">
+              <div class="flex min-w-0 flex-col justify-start text-start">
                 <h1 v-if="props.title" class="text-2xl font-bold">{{ props.title }}</h1>
-                <p v-if="props.description" class="text-sm text-muted-foreground mt-1">
+                <p v-if="props.description" class="mt-1 max-w-4xl text-sm text-muted-foreground">
                   {{ props.description }}
                 </p>
               </div>
-              <slot name="actions" class="flex gap-2" />
+              <div class="flex max-w-full shrink-0 flex-wrap gap-2">
+                <slot name="actions" />
+              </div>
             </div>
-            <slot />
+            <div class="min-w-0 max-w-full space-y-4">
+              <slot />
+            </div>
           </div>
         </div>
       </div>

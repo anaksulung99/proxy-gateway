@@ -36,4 +36,5 @@ export const middleware = router.named({
   verified: () => import('#middleware/verified_email_middleware'),
   apiKey: () => import('#middleware/api_key_middleware'),
   team: () => import('#middleware/team_middleware'),
+  admin: () => import('#middleware/admin_middleware'),
 })

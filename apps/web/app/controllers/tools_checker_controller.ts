@@ -106,6 +106,10 @@ export default class ToolsCheckerController {
           mode: payload.mode,
           targetUrl: payload.targetUrl ?? '',
           invalidCount: invalid.length,
+          meta: {
+            trigger: 'tools_manual',
+            stage: 'checking',
+          },
         }
       )
       const raw = tracked.results

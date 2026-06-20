@@ -17,6 +17,7 @@ import (
 // (RabbitmqPublisherService.HealthCheckJob).
 type incomingJob struct {
 	ProxyEntryID int64  `json:"proxyEntryId"`
+	RunID        int64  `json:"runId"`
 	Host         string `json:"host"`
 	Port         int    `json:"port"`
 	Protocol     string `json:"protocol"`
@@ -108,7 +109,7 @@ func (p *Pool) processJob(msg amqp.Delivery) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10_000_000_000) // 10s
 	defer cancel()
-	if err := p.repo.Save(ctx, in.ProxyEntryID, res); err != nil {
+	if err := p.repo.Save(ctx, in.RunID, in.ProxyEntryID, res); err != nil {
 		p.log.Error().Err(err).Int64("proxy_entry_id", in.ProxyEntryID).Msg("persist result failed")
 	} else {
 		p.log.Info().

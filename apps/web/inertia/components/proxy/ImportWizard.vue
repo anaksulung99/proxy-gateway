@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import { Icon } from '@iconify/vue'
+import { useNotificationsStore } from '~/stores/notifications'
 
 const props = defineProps<{ listId: number }>()
+const notifications = useNotificationsStore()
 
 const open = ref(false)
 const form = useForm({ raw: '', defaultProtocol: 'http' })
@@ -11,11 +13,20 @@ const form = useForm({ raw: '', defaultProtocol: 'http' })
 const lineCount = computed(() => form.raw.split(/\r?\n/).filter((l) => l.trim()).length)
 
 function submit() {
+  const taskKey = `import:list:${props.listId}`
+  notifications.startLocalTask(
+    taskKey,
+    'Import proxy list sedang berjalan',
+    `${lineCount.value} baris diproses dan auto-check akan diantrikan`
+  )
   form.post(`/app/proxy-lists/${props.listId}/import`, {
     preserveScroll: true,
     onSuccess: () => {
       open.value = false
       form.reset('raw')
+    },
+    onFinish: () => {
+      notifications.finishLocalTask(taskKey)
     },
   })
 }

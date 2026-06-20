@@ -9,3 +9,6 @@ export const recheckBulkValidator = vine.create({
   listId: vine.number().positive(),
   status: vine.enum(['timeout', 'unhealthy', 'unknown'] as const),
 })
+export const deleteManyByStatusValidator = vine.create({
+  status: vine.enum(['timeout', 'unhealthy', 'unknown'] as const),
+})

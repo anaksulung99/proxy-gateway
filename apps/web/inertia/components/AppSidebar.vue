@@ -1,11 +1,13 @@
 <script lang="ts" setup>
+import type { Data } from '@generated/data'
 import { useSidebar, type SidebarProps } from '@/components/ui/sidebar'
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
 })
 
-const userRole = computed<'USER' | 'ADMIN' | 'OWNER'>(() => 'USER')
-const isAdmin = computed(() => userRole.value === 'ADMIN' || userRole.value === 'OWNER')
+const page = usePage<Data.SharedProps>()
+const userRole = computed<UserRole>(() => page.props.user?.role?.name ?? 'user')
+const isAdmin = computed(() => page.props.user?.isAdmin === true)
 
 const navMain: AppNavMain[] = [
   { title: 'Dashboard', href: '/app', icon: 'lucide:layout-dashboard', exact: true },
@@ -48,7 +50,7 @@ const showAppName = computed(() => {
 </script>
 
 <template>
-  <Sidebar v-bind="props" class="z-9999">
+  <Sidebar v-bind="props" class="z-40 overflow-x-hidden">
     <SidebarHeader class="pt-14 md:pt-5">
       <SidebarMenu>
         <SidebarMenuItem>
@@ -57,8 +59,8 @@ const showAppName = computed(() => {
             size="lg"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <div class="flex items-center gap-2">
-              <div class="flex size-10 items-center justify-center rounded-lg">
+            <div class="flex min-w-0 items-center gap-2 overflow-hidden">
+              <div class="flex size-10 shrink-0 items-center justify-center rounded-lg">
                 <img
                   src="/logo.png"
                   alt="Residential Proxy"
@@ -67,13 +69,13 @@ const showAppName = computed(() => {
               </div>
               <div
                 v-show="showAppName"
-                class="grid flex-1 text-left text-sm leading-tight transition-all duration-200"
+                class="grid min-w-0 flex-1 text-left text-sm leading-tight transition-all duration-200"
               >
                 <span class="truncate font-semibold text-foreground"> Residential Proxy </span>
                 <span class="truncate text-xs text-muted-foreground"> 0.0.1 </span>
               </div>
               <div
-                class="grid md:hidden flex-1 text-left text-sm leading-tight transition-all duration-200"
+                class="grid min-w-0 flex-1 text-left text-sm leading-tight transition-all duration-200 md:hidden"
               >
                 <span class="truncate font-semibold text-foreground"> Residential Proxy </span>
                 <span class="truncate text-xs text-muted-foreground"> 0.0.1 </span>
@@ -87,7 +89,7 @@ const showAppName = computed(() => {
       <AppNavMain :items="navMainItems" />
     </SidebarContent>
     <SidebarFooter>
-      <!-- <AppNavUser :user="user" /> -->
+      <AppNavUser />
     </SidebarFooter>
     <SidebarRail />
   </Sidebar>

@@ -53,6 +53,7 @@ export interface TrackedRunOptions {
   targetUrl?: string
   proxyListId?: number | null
   invalidCount?: number
+  meta?: Record<string, unknown> | null
 }
 
 function baseUrl(): string {
@@ -168,6 +169,7 @@ export class HealthCheckClientService {
       targetUrl,
       totalInputs: inputs.length + invalidCount,
       invalidCount,
+      meta: options.meta ?? null,
       startedAt,
     })
 
@@ -181,6 +183,7 @@ export class HealthCheckClientService {
       run.timeoutCount = counts.timeout
       run.invalidCount = counts.invalid
       run.meta = {
+        ...(run.meta ?? {}),
         sampleResults: results.slice(0, 10),
       }
       run.finishedAt = DateTime.now()
@@ -221,7 +224,7 @@ export class HealthCheckClientService {
   async checkEntries(
     entries: ProxyEntry[],
     mode: CheckMode = 'request',
-    options?: { teamId?: number; proxyListId?: number | null }
+    options?: { teamId?: number; proxyListId?: number | null; meta?: Record<string, unknown> | null }
   ) {
     if (entries.length === 0) {
       return {
@@ -254,6 +257,7 @@ export class HealthCheckClientService {
             sourceType: 'proxy_list_bulk',
             mode,
             proxyListId: options?.proxyListId ?? null,
+            meta: options?.meta ?? { trigger: 'manual_recheck' },
           })
         : null
     const results = trackedRun?.results ?? (await this.checkProxies(inputs, mode))
@@ -320,6 +324,41 @@ export class HealthCheckClientService {
     }
 
     return summary
+  }
+
+  async createQueuedRun(options: {
+    teamId: number
+    proxyListId?: number | null
+    mode?: CheckMode
+    totalInputs: number
+    invalidCount?: number
+    meta?: Record<string, unknown> | null
+  }) {
+    return HealthCheckRun.create({
+      teamId: options.teamId,
+      proxyListId: options.proxyListId ?? null,
+      sourceType: 'proxy_list_bulk',
+      status: 'running',
+      mode: options.mode ?? 'request',
+      totalInputs: options.totalInputs,
+      invalidCount: options.invalidCount ?? 0,
+      meta: options.meta ?? { trigger: 'import_auto_check' },
+      startedAt: DateTime.now(),
+    })
+  }
+
+  async markRunError(runId: number, message: string) {
+    const run = await HealthCheckRun.find(runId)
+    if (!run) return
+
+    run.status = 'error'
+    run.errorMessage = message
+    run.finishedAt = DateTime.now()
+    run.meta = {
+      ...(run.meta ?? {}),
+      stage: 'error',
+    }
+    await run.save()
   }
 }
 

@@ -175,6 +175,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['index']>>>
     }
   }
+  'dashboard.tasks': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/runtime/tasks'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['activeTasks']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['activeTasks']>>>
+    }
+  }
+  'dashboard.runtimeQuarantine': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/runtime/quarantine'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['runtimeQuarantine']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['runtimeQuarantine']>>>
+    }
+  }
   'proxy-lists.index': {
     methods: ["GET","HEAD"]
     pattern: '/app/proxy-lists'
@@ -319,7 +343,7 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['bulk']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
-  'proxy-entries.reCheckBulk': {
+  'proxy-entries.runReBulkCheck': {
     methods: ["POST"]
     pattern: '/app/proxy-entries/bulk/recheck'
     types: {
@@ -327,8 +351,20 @@ export interface Registry {
       paramsTuple: []
       params: {}
       query: ExtractQuery<InferInput<(typeof import('#validators/proxy_entry').recheckBulkValidator)>>
-      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['reCheckBulk']>>>
-      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['reCheckBulk']>>> | { status: 422; response: { errors: SimpleError[] } }
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['runReBulkCheck']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['runReBulkCheck']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'proxy-entries.deleteManyByStatusPost': {
+    methods: ["DELETE"]
+    pattern: '/app/proxy-entries/bulk/delete'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/proxy_entry').recheckBulkValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/proxy_entry').recheckBulkValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['deleteManyByStatus']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/proxy_entries_controller').default['deleteManyByStatus']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
   'analytics.index': {

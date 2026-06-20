@@ -2,11 +2,9 @@
 import { useForm } from '@inertiajs/vue3'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
-import { useNotificationsStore } from '~/stores/notifications'
 
 const props = defineProps<{ listId: number }>()
-const { confirm } = useGlobalAlert()
-const notifications = useNotificationsStore()
+const { warning } = useGlobalAlert()
 
 const openDialog = ref(false)
 const form = useForm({
@@ -16,21 +14,13 @@ const form = useForm({
 
 function submit() {
   if (!form.listId) return
-  confirm('Recheck list', 'Are you sure you want to recheck this list?').then((result) => {
+  warning('Clean up list', 'Are you sure you want to clean up this list?').then((result) => {
     if (!result) return
-    const taskKey = `recheck:list:${props.listId}`
-    notifications.startLocalTask(
-      taskKey,
-      'Health check list sedang berjalan',
-      `${form.status} proxies pada list #${props.listId} sedang diperiksa`
-    )
-    form.post('/app/proxy-entries/bulk/recheck', {
+
+    form.delete('/app/proxy-entries/bulk/delete', {
       preserveScroll: true,
       onSuccess: () => {
         form.reset('status', 'listId')
-      },
-      onFinish: () => {
-        notifications.finishLocalTask(taskKey)
       },
     })
     openDialog.value = false
@@ -39,15 +29,15 @@ function submit() {
 
 const statusOptions = [
   {
-    label: 'Recheck unhealthy lists',
+    label: 'Delete unhealthy lists',
     value: 'unhealthy',
   },
   {
-    label: 'Recheck timeout lists',
+    label: 'Delete timeout lists',
     value: 'timeout',
   },
   {
-    label: 'Recheck unchecked lists',
+    label: 'Delete unchecked lists',
     value: 'unknown',
   },
 ]
@@ -57,36 +47,21 @@ const statusOptions = [
   <Dialog v-model:open="openDialog">
     <DialogTrigger as-child>
       <AppTooltip content="Recheck list" side="bottom">
-        <Button
-          size="sm"
-          class="bg-emerald-600 hover:bg-emerald-700 text-white"
-          @click="openDialog = true"
-        >
-          <Icon icon="material-symbols:health-and-safety-rounded" class="size-4" />
-          <span class="hidden md:block">Recheck list</span>
+        <Button size="sm" variant="destructive" @click="openDialog = true">
+          <Icon icon="hugeicons:clean" class="size-4" />
+          <span class="hidden md:block">Clean Up list</span>
         </Button>
       </AppTooltip>
     </DialogTrigger>
     <DialogContent class="sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle> Recheck list</DialogTitle>
+        <DialogTitle> Clean up list</DialogTitle>
         <DialogDescription>
-          Recheck all entries with the selected status in this list.
+          Clean up all entries with the selected status in this list.
         </DialogDescription>
       </DialogHeader>
       <div class="grid gap-3 py-1">
-        <div class="grid gap-1.5">
-          <Label class="text-xs">List ID</Label>
-          <Input
-            v-model.number="form.listId"
-            type="number"
-            name="listId"
-            class="font-mono text-xs"
-            disabled
-            placeholder="List ID"
-          />
-          <p v-if="form.errors.listId" class="text-xs text-red-600">{{ form.errors.listId }}</p>
-        </div>
+        <Input v-model.number="form.listId" type="hidden" name="listId" />
         <div class="grid gap-1.5">
           <Label class="text-xs">Status</Label>
           <Select v-model="form.status">
@@ -101,7 +76,7 @@ const statusOptions = [
       </div>
       <DialogFooter>
         <Button variant="outline" @click="openDialog = false">Cancel</Button>
-        <Button :disabled="form.processing || !form.listId" @click="submit"> Recheck list </Button>
+        <Button :disabled="form.processing || !form.listId" @click="submit"> Delete list </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

@@ -5,6 +5,7 @@ export type HealthCheckMode = 'request' | 'playwright' | 'crawlee'
 
 export interface HealthCheckJob {
   proxyEntryId: number
+  runId?: number | null
   host: string
   port: number
   protocol: string

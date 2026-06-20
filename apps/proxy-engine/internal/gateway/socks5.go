@@ -165,10 +165,12 @@ func (s *Socks5Server) handle(conn net.Conn) {
 
 		c, derr := dialThroughUpstream(dialCtx, upstream, target)
 		if derr == nil {
+			s.gw.observeUpstreamSuccess(dialCtx, upstream.ID)
 			upConn = c
 			break
 		}
 		lastErr = derr
+		s.gw.observeUpstreamFailure(dialCtx, cfg.ID, upstream, wrapUpstreamRuntimeError(derr))
 		s.gw.sel.Invalidate(dialCtx, listID, cfg.Rotation, sessionID)
 		excluded = append(excluded, upstream.ID)
 	}

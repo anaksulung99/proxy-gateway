@@ -213,6 +213,23 @@ export class ProxyUsageLogSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class RoleSchema extends BaseModel {
+  static $columns = ['createdAt', 'description', 'id', 'level', 'name', 'updatedAt'] as const
+  $columns = RoleSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare description: string | null
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare level: number
+  @column()
+  declare name: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+}
+
 export class RotationConfigSchema extends BaseModel {
   static $columns = ['createdAt', 'excludeAsn', 'excludeCountries', 'geoTarget', 'id', 'intervalMinutes', 'protocol', 'proxyListId', 'rotationType', 'stickyDurationMinutes', 'updatedAt'] as const
   $columns = RotationConfigSchema.$columns
@@ -336,7 +353,7 @@ export class TeamSchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'currentTeamId', 'email', 'emailVerifiedAt', 'fullName', 'id', 'password', 'updatedAt'] as const
+  static $columns = ['createdAt', 'currentTeamId', 'email', 'emailVerifiedAt', 'fullName', 'id', 'password', 'roleId', 'updatedAt'] as const
   $columns = UserSchema.$columns
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -352,6 +369,8 @@ export class UserSchema extends BaseModel {
   declare id: number
   @column({ serializeAs: null })
   declare password: string
+  @column()
+  declare roleId: number
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

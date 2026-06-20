@@ -2,6 +2,7 @@ import User from '#models/user'
 import { signupValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import { sendVerificationEmail } from '#services/auth_mail_service'
+import Role from '#models/role'
 
 export default class NewAccountController {
   async create({ inertia }: HttpContext) {
@@ -10,7 +11,11 @@ export default class NewAccountController {
 
   async store({ request, response, auth, session }: HttpContext) {
     const payload = await request.validateUsing(signupValidator)
-    const user = await User.create({ ...payload })
+    const defaultRole = await Role.firstOrCreate(
+      { name: 'user' },
+      { level: 10, description: 'Standard application access' }
+    )
+    const user = await User.create({ ...payload, roleId: defaultRole.id })
 
     await auth.use('web').login(user)
     try {

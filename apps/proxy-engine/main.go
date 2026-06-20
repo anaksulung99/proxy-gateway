@@ -11,6 +11,7 @@ import (
 	"github.com/proxy-system/proxy-engine/internal/gateway"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/quota"
+	"github.com/proxy-system/proxy-engine/internal/runtimehealth"
 	"github.com/proxy-system/proxy-engine/internal/server"
 	"github.com/proxy-system/proxy-engine/internal/session"
 	"github.com/proxy-system/proxy-engine/internal/usage"
@@ -41,7 +42,15 @@ func main() {
 	usageSink := usage.NewSink(pg, log)
 	keyValidator := apikey.New(pg)
 	quotaTracker := quota.New(rdb)
-	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, log)
+	runtimeTracker := runtimehealth.New(
+		pg,
+		rdb,
+		repo,
+		cfg.RuntimeFailureThreshold,
+		time.Duration(cfg.RuntimeFailureWindowSec)*time.Second,
+		log,
+	)
+	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, runtimeTracker, log)
 
 	// HTTP forward-proxy listener
 	go func() {

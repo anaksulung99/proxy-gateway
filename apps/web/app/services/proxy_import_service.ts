@@ -2,7 +2,7 @@ import db from '@adonisjs/lucid/services/db'
 import ProxyEntry from '#models/proxy_entry'
 import type ProxyList from '#models/proxy_list'
 import publisher, { type HealthCheckJob } from '#services/rabbitmq_publisher_service'
-import type { CheckMode } from '#services/health_check_client_service'
+import healthClient, { type CheckMode } from '#services/health_check_client_service'
 import proxyEngineClient from '#services/proxy_engine_client_service'
 
 export interface ParsedProxy {
@@ -28,6 +28,7 @@ export interface ImportSummary {
   created: number
   updated: number
   enqueued: number
+  autoCheckRunId: number | null
 }
 
 const HOST_RE = /^[a-zA-Z0-9._-]+$/
@@ -206,8 +207,24 @@ export class ProxyImportService {
     })
 
     // Fire-and-forget health-check enqueue (fail-soft).
+    const run =
+      affected.length > 0
+        ? await healthClient.createQueuedRun({
+            teamId: list.teamId,
+            proxyListId: list.id,
+            mode: autoCheckMode,
+            totalInputs: affected.length,
+            meta: {
+              trigger: source === 'scrape' ? 'scraper_auto_check' : 'import_auto_check',
+              stage: 'queued',
+              listName: list.name,
+            },
+          })
+        : null
+
     const jobs: HealthCheckJob[] = affected.map((e) => ({
       proxyEntryId: e.id,
+      runId: run?.id ?? null,
       host: e.host,
       port: e.port,
       protocol: e.protocol,
@@ -216,6 +233,12 @@ export class ProxyImportService {
       mode: autoCheckMode,
     }))
     const { enqueued } = await publisher.enqueueHealthChecks(jobs)
+    if (run && enqueued === 0) {
+      await healthClient.markRunError(
+        run.id,
+        'Auto health-check jobs failed to enqueue (broker unreachable or queue disabled)'
+      )
+    }
     await proxyEngineClient.invalidateLists([list.id])
 
     return {
@@ -227,6 +250,7 @@ export class ProxyImportService {
       created,
       updated,
       enqueued,
+      autoCheckRunId: run && enqueued > 0 ? run.id : null,
     }
   }
 }

@@ -152,7 +152,7 @@ function closeEdit() {
       <div class="flex gap-2 justify-end">
         <AppTooltip content="Create new list" side="bottom">
           <Button size="sm" @click="showCreate = true">
-            <Icon icon="lucide:plus" class="mr-1 size-4" />
+            <Icon icon="lucide:plus" class="size-4" />
             <span>New list</span>
           </Button>
         </AppTooltip>

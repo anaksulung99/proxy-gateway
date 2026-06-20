@@ -1,4 +1,6 @@
 declare global {
+  type UserRole = 'admin' | 'user'
+
   interface Window {}
 
   interface AppNavMain {

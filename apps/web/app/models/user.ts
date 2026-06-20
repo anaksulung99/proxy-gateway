@@ -1,6 +1,7 @@
 import { UserSchema } from '#database/schema'
 import Team from '#models/team'
 import ApiKey from '#models/api_key'
+import Role from '#models/role'
 import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
@@ -8,6 +9,9 @@ import { belongsTo, hasMany } from '@adonisjs/lucid/orm'
 import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
 
 export default class User extends compose(UserSchema, withAuthFinder(hash)) {
+  @belongsTo(() => Role)
+  declare role: BelongsTo<typeof Role>
+
   @belongsTo(() => Team, { foreignKey: 'currentTeamId' })
   declare currentTeam: BelongsTo<typeof Team>
 

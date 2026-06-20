@@ -2,8 +2,8 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
-  '@swc/core': set this to true or false
-  better-sqlite3: set this to true or false
-  esbuild: set this to true or false
-  maplibre-gl: set this to true or false
-  vue-demi: set this to true or false
+  '@swc/core': true
+  better-sqlite3: true
+  esbuild: true
+  maplibre-gl: true
+  vue-demi: true

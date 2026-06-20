@@ -23,7 +23,10 @@ export interface ApiDefinition {
     resend: typeof routes['email.resend']
     verify: typeof routes['email.verify']
   }
-  dashboard: typeof routes['dashboard']
+  dashboard: typeof routes['dashboard'] & {
+    tasks: typeof routes['dashboard.tasks']
+    runtimeQuarantine: typeof routes['dashboard.runtimeQuarantine']
+  }
   proxyLists: {
     index: typeof routes['proxy-lists.index']
     store: typeof routes['proxy-lists.store']
@@ -39,7 +42,8 @@ export interface ApiDefinition {
   }
   proxyEntries: {
     bulk: typeof routes['proxy-entries.bulk']
-    reCheckBulk: typeof routes['proxy-entries.reCheckBulk']
+    runReBulkCheck: typeof routes['proxy-entries.runReBulkCheck']
+    deleteManyByStatusPost: typeof routes['proxy-entries.deleteManyByStatusPost']
   }
   analytics: {
     index: typeof routes['analytics.index']

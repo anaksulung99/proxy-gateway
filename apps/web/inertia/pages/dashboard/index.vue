@@ -8,13 +8,18 @@ import { usePolling } from '~/composables/usePolling'
 const ANY = '__all__'
 
 // Live KPIs — silent background refresh (pauses when tab hidden).
-usePolling(['stats', 'alerts', 'scraperHealth'], { interval: 8000 })
+usePolling(['stats', 'alerts', 'scraperHealth', 'runtimeQuarantine'], { interval: 8000 })
 
 function fmtBytes(value: number) {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
   if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
   return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
+function fmtDate(value: string | null) {
+  if (!value) return 'Belum ada event'
+  return new Date(value).toLocaleString()
 }
 
 const props = defineProps<{
@@ -74,6 +79,25 @@ const props = defineProps<{
         configured: boolean
         error: string
       }
+  runtimeQuarantine: {
+    total24h: number
+    timeout24h: number
+    unhealthy24h: number
+    affectedLists24h: number
+    latestAt: string | null
+    recent: Array<{
+      id: number
+      proxyEntryId: number
+      proxyListId: number
+      proxyListName: string
+      endpoint: string
+      protocol: string
+      countryCode: string | null
+      status: 'timeout' | 'unhealthy'
+      checkedAt: string
+      errorMessage: string
+    }>
+  }
   scraperHealth:
     | {
         ok: true
@@ -369,119 +393,123 @@ const refreshWithState = () => {
                 Ringkasan status adapter scraper dari endpoint `/source-health`.
               </CardDescription>
             </div>
-            <Button variant="outline" as-child>
+            <Button size="sm" as-child>
               <Link href="/app/scraper">Open scraper</Link>
             </Button>
           </div>
         </CardHeader>
-        <CardContent v-if="scraperHealth.ok" class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Registered Sources</p>
-              <p class="mt-2 text-2xl font-semibold">{{ scraperHealth.overview.total }}</p>
-              <p class="mt-1 text-xs text-muted-foreground">Snapshot service scraper terbaru</p>
-            </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Healthy</p>
-              <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
-                {{ scraperHealth.overview.healthy }}
-              </p>
-              <p class="mt-1 text-xs text-muted-foreground">
-                {{ scraperHealth.overview.idle }} idle source
-              </p>
-            </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Need Attention</p>
-              <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
-                {{
-                  scraperHealth.overview.degraded +
-                  scraperHealth.overview.error +
-                  scraperHealth.overview.misconfigured
-                }}
-              </p>
-              <p class="mt-1 text-xs text-muted-foreground">
-                {{ scraperHealth.overview.degraded }} degraded ·
-                {{ scraperHealth.overview.error }} error ·
-                {{ scraperHealth.overview.misconfigured }} misconfigured
-              </p>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border bg-card/70 p-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-medium">Priority Sources</p>
-                <p class="text-xs text-muted-foreground">
-                  Source dengan status non-healthy yang paling butuh tindak lanjut.
+        <CardContent v-if="scraperHealth.ok">
+          <div class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Registered Sources</p>
+                <p class="mt-2 text-2xl font-semibold">{{ scraperHealth.overview.total }}</p>
+                <p class="mt-1 text-xs text-muted-foreground">Snapshot service scraper terbaru</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Healthy</p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                  {{ scraperHealth.overview.healthy }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {{ scraperHealth.overview.idle }} idle source
                 </p>
               </div>
-              <Badge variant="outline">
-                Updated {{ new Date(scraperHealth.generatedAt).toLocaleString() }}
-              </Badge>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Need Attention</p>
+                <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                  {{
+                    scraperHealth.overview.degraded +
+                    scraperHealth.overview.error +
+                    scraperHealth.overview.misconfigured
+                  }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {{ scraperHealth.overview.degraded }} degraded ·
+                  {{ scraperHealth.overview.error }} error ·
+                  {{ scraperHealth.overview.misconfigured }} misconfigured
+                </p>
+              </div>
             </div>
 
-            <div v-if="scraperHealth.attentionSources.length" class="mt-4 space-y-3">
-              <div
-                v-for="source in scraperHealth.attentionSources"
-                :key="source.source"
-                class="rounded-xl border p-3"
-              >
-                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p class="text-sm font-semibold">{{ source.source }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      Last result: {{ source.lastResult || source.status }}
-                    </p>
+            <ScrollArea
+              class="rounded-2xl border bg-card/70 p-4 max-h-[calc(100vh-400px)] overflow-y-auto"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-medium">Priority Sources</p>
+                  <p class="text-xs text-muted-foreground">
+                    Source dengan status non-healthy yang paling butuh tindak lanjut.
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  Updated {{ new Date(scraperHealth.generatedAt).toLocaleString() }}
+                </Badge>
+              </div>
+
+              <div v-if="scraperHealth.attentionSources.length" class="mt-4 space-y-3">
+                <div
+                  v-for="source in scraperHealth.attentionSources"
+                  :key="source.source"
+                  class="rounded-xl border p-3"
+                >
+                  <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p class="text-sm font-semibold">{{ source.source }}</p>
+                      <p class="text-xs text-muted-foreground">
+                        Last result: {{ source.lastResult || source.status }}
+                      </p>
+                    </div>
+                    <Badge
+                      :variant="
+                        source.status === 'misconfigured' || source.status === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                      "
+                    >
+                      {{ source.status }}
+                    </Badge>
                   </div>
-                  <Badge
-                    :variant="
-                      source.status === 'misconfigured' || source.status === 'error'
-                        ? 'destructive'
-                        : 'secondary'
-                    "
-                  >
-                    {{ source.status }}
-                  </Badge>
-                </div>
-                <p class="mt-2 text-xs text-muted-foreground">
-                  {{ source.lastEntries }} entries · {{ source.lastDurationMs }} ms ·
-                  {{ source.consecutiveFailures }} consecutive failures
-                </p>
-                <div v-if="source.triggers.length" class="mt-3 flex flex-wrap gap-2">
-                  <Badge
-                    v-for="trigger in source.triggers"
-                    :key="`${source.source}-${trigger.trigger}`"
-                    :variant="
-                      trigger.status === 'misconfigured' || trigger.status === 'error'
-                        ? 'destructive'
-                        : trigger.status === 'degraded'
-                          ? 'secondary'
-                          : 'outline'
-                    "
-                    class="inline-flex items-center gap-2"
-                  >
-                    <span class="font-medium uppercase">{{ trigger.trigger }}</span>
-                    <span class="text-muted-foreground">
-                      {{ trigger.status }} · {{ trigger.totalRuns }} runs
-                    </span>
-                  </Badge>
-                </div>
-                <div class="mt-3">
-                  <Button variant="outline" size="sm" as-child>
-                    <Link :href="source.logsHref">Open filtered logs</Link>
-                  </Button>
+                  <p class="mt-2 text-xs text-muted-foreground">
+                    {{ source.lastEntries }} entries · {{ source.lastDurationMs }} ms ·
+                    {{ source.consecutiveFailures }} consecutive failures
+                  </p>
+                  <div v-if="source.triggers.length" class="mt-3 flex flex-wrap gap-2">
+                    <Badge
+                      v-for="trigger in source.triggers"
+                      :key="`${source.source}-${trigger.trigger}`"
+                      :variant="
+                        trigger.status === 'misconfigured' || trigger.status === 'error'
+                          ? 'destructive'
+                          : trigger.status === 'degraded'
+                            ? 'secondary'
+                            : 'outline'
+                      "
+                      class="inline-flex items-center gap-2"
+                    >
+                      <span class="font-medium uppercase">{{ trigger.trigger }}</span>
+                      <span class="text-muted-foreground">
+                        {{ trigger.status }} · {{ trigger.totalRuns }} runs
+                      </span>
+                    </Badge>
+                  </div>
+                  <div class="mt-3">
+                    <Button variant="outline" size="sm" as-child>
+                      <Link :href="source.logsHref">Open filtered logs</Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div v-else class="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <p class="font-medium text-emerald-700 dark:text-emerald-300">
-                Semua source scraper berada pada status healthy atau idle.
-              </p>
-              <p class="mt-1 text-sm text-muted-foreground">
-                Belum ada source error, degraded, atau misconfigured pada snapshot terbaru.
-              </p>
-            </div>
+              <div v-else class="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <p class="font-medium text-emerald-700 dark:text-emerald-300">
+                  Semua source scraper berada pada status healthy atau idle.
+                </p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                  Belum ada source error, degraded, atau misconfigured pada snapshot terbaru.
+                </p>
+              </div>
+            </ScrollArea>
           </div>
         </CardContent>
         <CardContent v-else>
@@ -501,7 +529,7 @@ const refreshWithState = () => {
                 Ringkasan usage logs 24 jam terakhir untuk trafik yang melewati proxy-engine.
               </CardDescription>
             </div>
-            <Button variant="outline" as-child>
+            <Button class="bg-indigo-600 text-white hover:bg-indigo-700" size="sm" as-child>
               <Link href="/app/analytics">View full analytics</Link>
             </Button>
           </div>
@@ -561,46 +589,142 @@ const refreshWithState = () => {
         </CardContent>
       </Card>
 
-      <Card class="border-border/70">
-        <CardHeader>
-          <CardTitle>Proxy Engine Runtime</CardTitle>
-          <CardDescription>
-            Status listener gateway dan admin plane yang dipantau langsung dari service Go.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div v-if="engine.ok" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Service</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.service }}</p>
+      <div class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <Card class="border-border/70">
+          <CardHeader>
+            <CardTitle>Proxy Engine Runtime</CardTitle>
+            <CardDescription>
+              Status listener gateway dan admin plane yang dipantau langsung dari service Go.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div v-if="engine.ok" class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Service</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.service }}</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Gateway Port</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.gatewayPort }}</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Admin Port</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.adminPort }}</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Cache Size</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.cacheSize }}</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Uptime</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.uptimeSeconds }}s</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Dropped Usage Logs</p>
+                <p class="mt-2 text-sm font-semibold">{{ engine.runtime.usageDropped }}</p>
+              </div>
             </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Gateway Port</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.gatewayPort }}</p>
+            <div v-else class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <p class="font-medium">Proxy engine runtime belum tersedia</p>
+              <p class="mt-1 text-sm text-muted-foreground">{{ engine.error }}</p>
             </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Admin Port</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.adminPort }}</p>
+          </CardContent>
+        </Card>
+
+        <Card class="border-border/70">
+          <CardHeader>
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Runtime Failure Quarantine</CardTitle>
+                <CardDescription>
+                  Proxy yang otomatis ditandai `timeout` atau `unhealthy` saat gagal dipakai
+                  runtime.
+                </CardDescription>
+              </div>
+              <Button class="bg-teal-600 text-white hover:bg-teal-700" size="sm" as-child>
+                <Link href="/app/runtime/quarantine">Open quarantine logs</Link>
+              </Button>
             </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Cache Size</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.cacheSize }}</p>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Auto-Quarantined 24h</p>
+                <p class="mt-2 text-2xl font-semibold">{{ runtimeQuarantine.total24h }}</p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  Event runtime failure yang menurunkan health proxy
+                </p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Timeout</p>
+                <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                  {{ runtimeQuarantine.timeout24h }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  Terdeteksi dari error timeout atau deadline
+                </p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Unhealthy</p>
+                <p class="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
+                  {{ runtimeQuarantine.unhealthy24h }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">Failure runtime selain timeout</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Affected Pools</p>
+                <p class="mt-2 text-2xl font-semibold">{{ runtimeQuarantine.affectedLists24h }}</p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  Last event {{ fmtDate(runtimeQuarantine.latestAt) }}
+                </p>
+              </div>
             </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Uptime</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.uptimeSeconds }}s</p>
+
+            <div
+              v-if="runtimeQuarantine.recent.length === 0"
+              class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
+            >
+              <p class="font-medium text-emerald-700 dark:text-emerald-300">
+                Belum ada proxy yang di-auto quarantine oleh runtime.
+              </p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                Flow failover aktif, tetapi belum ada upstream yang melewati threshold runtime
+                failure pada window saat ini.
+              </p>
             </div>
-            <div class="rounded-xl border bg-card/70 p-4">
-              <p class="text-xs text-muted-foreground">Dropped Usage Logs</p>
-              <p class="mt-2 text-sm font-semibold">{{ engine.runtime.usageDropped }}</p>
+
+            <div v-else class="space-y-3">
+              <div
+                v-for="event in runtimeQuarantine.recent"
+                :key="event.id"
+                class="rounded-xl border p-4"
+                :class="
+                  event.status === 'timeout'
+                    ? 'border-amber-500/20 bg-amber-500/5'
+                    : 'border-red-500/20 bg-red-500/5'
+                "
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p class="font-medium">{{ event.proxyListName }}</p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ event.protocol.toUpperCase() }} · {{ event.endpoint }}
+                      <span v-if="event.countryCode"> · {{ event.countryCode }}</span>
+                    </p>
+                  </div>
+                  <Badge :variant="event.status === 'timeout' ? 'secondary' : 'destructive'">
+                    {{ event.status }}
+                  </Badge>
+                </div>
+                <p class="mt-3 text-sm text-muted-foreground">{{ event.errorMessage }}</p>
+                <p class="mt-2 text-xs text-muted-foreground">
+                  Proxy #{{ event.proxyEntryId }} · {{ fmtDate(event.checkedAt) }}
+                </p>
+              </div>
             </div>
-          </div>
-          <div v-else class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-            <p class="font-medium">Proxy engine runtime belum tersedia</p>
-            <p class="mt-1 text-sm text-muted-foreground">{{ engine.error }}</p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <PoolHealthTable :pools="pools" />
 

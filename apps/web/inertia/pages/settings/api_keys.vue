@@ -126,7 +126,7 @@ function copy(value: string, label: string) {
   <AppShell title="Settings · API Keys">
     <template #actions>
       <Button size="sm" @click="showCreate = true">
-        <Icon icon="lucide:plus" class="mr-1 size-4" /> New key
+        <Icon icon="lucide:plus" class="size-4" /> New key
       </Button>
     </template>
 
@@ -205,7 +205,7 @@ function copy(value: string, label: string) {
           are attributed per key.
         </CardDescription>
       </CardHeader>
-      <CardContent class="p-0">
+      <CardContent class="p-2">
         <Table>
           <TableHeader>
             <TableRow>

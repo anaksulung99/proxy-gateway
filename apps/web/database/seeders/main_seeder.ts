@@ -6,14 +6,25 @@ import ProxyEntry from '#models/proxy_entry'
 import RotationConfig from '#models/rotation_config'
 import HealthResult from '#models/health_result'
 import { DateTime } from 'luxon'
+import Role from '#models/role'
 
 export default class extends BaseSeeder {
   async run() {
+    const adminRole = await Role.firstOrCreate(
+      { name: 'admin' },
+      { level: 100, description: 'Full administrative access' }
+    )
+
     // 1. User (idempotent by email)
     const user = await User.firstOrCreate(
       { email: 'admin@proxy.local' },
-      { fullName: 'Admin Dev', password: 'password123' }
+      { fullName: 'Admin Dev', password: 'password123', roleId: adminRole.id }
     )
+
+    if (user.roleId !== adminRole.id) {
+      user.roleId = adminRole.id
+      await user.save()
+    }
 
     // 2. Team owned by the user
     const team = await Team.firstOrCreate({ ownerId: user.id, name: 'Default Team' }, {})
