@@ -30,7 +30,8 @@ func (a *ProxydbAdapter) Scrape() ([]ProxyEntry, error) {
 		visitedOffsets[currentOffset] = true
 		pageCount++
 		if pageCount > 1 {
-			paginationDelay() // throttle to avoid proxydb's HTTP 429
+			// proxydb rate-limits deep pagination — use a longer gap (2.5s).
+			pageDelayMs(2500, "PROXYDB_DELAY_MS", "SCRAPER_PAGINATION_DELAY_MS")
 		}
 		pageURL.RawQuery = url.Values{"offset": []string{strconv.Itoa(currentOffset)}}.Encode()
 

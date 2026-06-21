@@ -39,9 +39,7 @@ const props = defineProps<{
           <p class="mt-3 text-sm text-muted-foreground">
             {{ props.description }}
           </p>
-          <p class="mt-3 text-xs text-muted-foreground">
-            Source file: {{ props.sourcePath }}
-          </p>
+          <p class="mt-3 text-xs text-muted-foreground">Source file: {{ props.sourcePath }}</p>
         </div>
       </div>
 
@@ -57,9 +55,7 @@ const props = defineProps<{
             <Link href="/app/analytics?trafficType=tunnel">CONNECT only</Link>
           </Button>
           <Button variant="outline" as-child>
-            <Link href="/app/analytics?trafficType=tunnel&tunnelPhase=issues">
-              Tunnel issues
-            </Link>
+            <Link href="/app/analytics?trafficType=tunnel&tunnelPhase=issues"> Tunnel issues </Link>
           </Button>
           <Button variant="outline" as-child>
             <Link href="/app/runtime/quarantine">Runtime quarantine</Link>
@@ -76,7 +72,7 @@ const props = defineProps<{
         </CardHeader>
         <CardContent>
           <pre
-            class="overflow-x-auto rounded-2xl border bg-card/70 p-4 text-sm leading-6 whitespace-pre-wrap break-words"
+            class="overflow-x-auto rounded-2xl border bg-card/70 p-4 text-sm leading-6 whitespace-pre-wrap wrap-break-word"
           ><code>{{ props.content }}</code></pre>
         </CardContent>
       </Card>

@@ -39,7 +39,20 @@ func httpClient() *http.Client {
 // per-IP rate limits (e.g. proxydb's HTTP 429). Configurable via
 // SCRAPER_PAGINATION_DELAY_MS (default 800ms; 0 disables).
 func paginationDelay() {
-	if ms := envInt("SCRAPER_PAGINATION_DELAY_MS", 800); ms > 0 {
+	pageDelayMs(800, "SCRAPER_PAGINATION_DELAY_MS")
+}
+
+// pageDelayMs sleeps fallbackMs (or the first set env in names) between paginated
+// requests. Lets rate-limit-prone sources (proxydb) use a longer gap.
+func pageDelayMs(fallbackMs int, names ...string) {
+	ms := fallbackMs
+	for _, n := range names {
+		if v := envInt(n, -1); v >= 0 {
+			ms = v
+			break
+		}
+	}
+	if ms > 0 {
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 	}
 }
@@ -149,7 +162,15 @@ func httpFetchWithFallback(urls []string, cfg httpRequestConfig) (string, error)
 
 			if resp.StatusCode >= 400 {
 				if attempt < attempts && shouldRetryHTTPStatus(resp.StatusCode) {
-					time.Sleep(retryDelay(attempt, retryAfterDelay(resp.Header.Get("Retry-After"))))
+					wait := retryAfterDelay(resp.Header.Get("Retry-After"))
+					if wait <= 0 {
+						if resp.StatusCode == http.StatusTooManyRequests {
+							wait = rateLimitBackoff(attempt) // patient exponential backoff for 429
+						} else {
+							wait = retryDelay(attempt, 0)
+						}
+					}
+					time.Sleep(wait)
 					continue
 				}
 				failureMessages = append(failureMessages, fmt.Sprintf("%s attempt %d: http %d", targetURL, attempt, resp.StatusCode))
@@ -188,6 +209,24 @@ func retryDelay(attempt int, retryAfter time.Duration) time.Duration {
 		backoff = 0
 	}
 	return time.Duration(backoff*attempt) * time.Millisecond
+}
+
+// rateLimitBackoff is a patient exponential backoff for HTTP 429 responses that
+// don't carry a Retry-After header (e.g. proxydb): 2s, 4s, 8s… capped at 15s.
+// Tunable via SCRAPER_RATELIMIT_BACKOFF_MS.
+func rateLimitBackoff(attempt int) time.Duration {
+	base := envInt("SCRAPER_RATELIMIT_BACKOFF_MS", 2000)
+	if base < 0 {
+		base = 0
+	}
+	d := time.Duration(base) * time.Millisecond
+	for i := 1; i < attempt; i++ {
+		d *= 2
+	}
+	if d > 15*time.Second {
+		d = 15 * time.Second
+	}
+	return d
 }
 
 func retryAfterDelay(value string) time.Duration {
