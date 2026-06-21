@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,7 +48,7 @@ func (s *Selector) pickRandom(candidates []pool.Upstream) pool.Upstream {
 //   - per_request: random every call
 //   - sticky:      one IP per session id, kept for sticky_duration (Redis TTL)
 //   - interval:    one IP per list, rotated every interval_minutes (Redis TTL)
-func (s *Selector) Pick(ctx context.Context, listID int64, rot pool.Rotation, sessionID string, candidates []pool.Upstream) (pool.Upstream, error) {
+func (s *Selector) Pick(ctx context.Context, listID int64, rot pool.Rotation, sessionID, country string, candidates []pool.Upstream) (pool.Upstream, error) {
 	if len(candidates) == 0 {
 		return pool.Upstream{}, ErrNoProxies
 	}
@@ -57,12 +58,12 @@ func (s *Selector) Pick(ctx context.Context, listID int64, rot pool.Rotation, se
 		if sessionID == "" {
 			return s.pickRandom(candidates), nil
 		}
-		key := s.rotationKey(listID, rot.Type, sessionID)
+		key := s.rotationKey(listID, rot.Type, sessionID, country)
 		ttl := time.Duration(maxInt(rot.StickyMinutes, 1)) * time.Minute
 		return s.pinned(ctx, key, ttl, candidates)
 
 	case "interval":
-		key := s.rotationKey(listID, rot.Type, sessionID)
+		key := s.rotationKey(listID, rot.Type, sessionID, country)
 		ttl := time.Duration(clamp(rot.IntervalMinutes, 1, 30)) * time.Minute
 		return s.pinned(ctx, key, ttl, candidates)
 
@@ -89,26 +90,30 @@ func (s *Selector) pinned(ctx context.Context, key string, ttl time.Duration, ca
 	return chosen, nil
 }
 
-func (s *Selector) Invalidate(ctx context.Context, listID int64, rot pool.Rotation, sessionID string) {
+func (s *Selector) Invalidate(ctx context.Context, listID int64, rot pool.Rotation, sessionID, country string) {
 	if s.rdb == nil {
 		return
 	}
-	key := s.rotationKey(listID, rot.Type, sessionID)
+	key := s.rotationKey(listID, rot.Type, sessionID, country)
 	if key == "" {
 		return
 	}
 	_ = s.rdb.Del(ctx, key).Err()
 }
 
-func (s *Selector) rotationKey(listID int64, rotationType, sessionID string) string {
+// rotationKey namespaces the pinned-upstream key by the country override so that
+// clients targeting different countries on the same interval/sticky list do not
+// fight over a single shared key.
+func (s *Selector) rotationKey(listID int64, rotationType, sessionID, country string) string {
+	cc := strings.ToUpper(strings.TrimSpace(country))
 	switch rotationType {
 	case "sticky":
 		if sessionID == "" {
 			return ""
 		}
-		return fmt.Sprintf("session:%d:%s", listID, sessionID)
+		return fmt.Sprintf("session:%d:%s:%s", listID, sessionID, cc)
 	case "interval":
-		return fmt.Sprintf("rotation:%d", listID)
+		return fmt.Sprintf("rotation:%d:%s", listID, cc)
 	default:
 		return ""
 	}

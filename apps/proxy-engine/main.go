@@ -42,12 +42,11 @@ func main() {
 
 	var rmq *rabbitmq.Client
 	if cfg.RuntimeAutoRecheckEnabled {
-		rmq, err = rabbitmq.NewClient(cfg.RabbitMQ)
-		if err != nil {
-			log.Warn().Err(err).Msg("Runtime auto recheck RabbitMQ connection failed; auto recheck disabled")
-		} else {
-			defer rmq.Close()
-		}
+		// Lazy/self-healing publisher: connects on first use and re-dials after a
+		// broker restart, so a slow broker at boot no longer permanently disables
+		// auto-recheck (the connection is established when the first job publishes).
+		rmq = rabbitmq.NewClient(cfg.RabbitMQ)
+		defer rmq.Close()
 	}
 
 	repo := pool.NewRepository(pg, 10*time.Second)

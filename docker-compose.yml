@@ -112,7 +112,7 @@ services:
       PORT: "3333"
       HOST: 0.0.0.0
       LOG_LEVEL: "${LOG_LEVEL:-info}"
-      APP_KEY: "${APP_KEY:-proxy}"
+      APP_KEY: "${APP_KEY:?set APP_KEY in .env — generate with: docker compose run --rm web node ace generate:key}"
       APP_URL: "${APP_URL:-http://localhost:3333}"
       SESSION_DRIVER: "${SESSION_DRIVER:-cookie}"
       DB_CONNECTION: "${DB_CONNECTION:-postgres}"
@@ -141,11 +141,11 @@ services:
       PROXY_USAGE_LOG_RETENTION_DAYS: "${PROXY_USAGE_LOG_RETENTION_DAYS:-30}"
       GATEWAY_HOST: "${GATEWAY_HOST:-localhost}"
       GATEWAY_SOCKS_HOST: "${GATEWAY_SOCKS_HOST:-localhost}"
-      GATEWAY_SECRET: "${GATEWAY_SECRET:-proxy}"
+      GATEWAY_SECRET: "${GATEWAY_SECRET:?set a strong GATEWAY_SECRET in .env}"
       PROXY_ENGINE_ADMIN_URL: "${PROXY_ENGINE_ADMIN_URL:-http://localhost:8001}"
-      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:-proxy}"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?set a strong INTERNAL_API_SECRET in .env}"
       GEO_ENRICHMENT_ENABLED: "${GEO_ENRICHMENT_ENABLED:-true}"
-      GEO_ENRICHMENT_TICK_SECONDS: "${GEO_ENRICHMENT_TICK_SECONDS:-60}"
+      GEO_ENRICHMENT_TICK_SECONDS: "${GEO_ENRICHMENT_TICK_SECONDS:-30}"
       GEO_ENRICHMENT_BATCH_LIMIT: "${GEO_ENRICHMENT_BATCH_LIMIT:-100}"
       SMTP_HOST: "${SMTP_HOST:-smtp}"
       SMTP_PORT: "${SMTP_PORT:-587}"
@@ -192,7 +192,7 @@ services:
       GATEWAY_PORT: "8000" # HTTP forward proxy
       SOCKS_PORT: "1080" # SOCKS5
       WORKERS: "${PROXY_ENGINE_WORKERS:-50}"
-      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:-proxy}"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?set a strong INTERNAL_API_SECRET in .env}"
       RUNTIME_FAILURE_THRESHOLD: "${RUNTIME_FAILURE_THRESHOLD:-2}"
       RUNTIME_FAILURE_WINDOW_SEC: "${RUNTIME_FAILURE_WINDOW_SEC:-300}"
       RUNTIME_AUTO_RECHECK_ENABLED: ${RUNTIME_AUTO_RECHECK_ENABLED:-true}
@@ -254,6 +254,7 @@ services:
       SCRAPER_HTTP_RETRY_ATTEMPTS: "${SCRAPER_HTTP_RETRY_ATTEMPTS:-3}"
       SCRAPER_HTTP_RETRY_BACKOFF_MS: "${SCRAPER_HTTP_RETRY_BACKOFF_MS:-1000}"
       SCRAPER_PAGINATION_MAX_PAGES: "${SCRAPER_PAGINATION_MAX_PAGES:-10}"
+      SCRAPER_MAX_ENTRIES_PER_RUN: "${SCRAPER_MAX_ENTRIES_PER_RUN:-2000}" # cap bulk sources (e.g. openproxy-list)
       GEONODE_MAX_PAGES: "${GEONODE_MAX_PAGES:-10}"
       PROXYDB_MAX_PAGES: "${PROXYDB_MAX_PAGES:-10}"
       FREEPROXY_WORLD_MAX_PAGES: "${FREEPROXY_WORLD_MAX_PAGES:-10}"
@@ -274,6 +275,10 @@ services:
     build:
       context: apps/health-checker
       dockerfile: ../../infra/docker/checker.Dockerfile
+      args:
+        # Set CHECKER_INSTALL_CHROMIUM=false in .env for a ~1 GB leaner image
+        # (drops the playwright check mode; request/crawlee still work).
+        INSTALL_CHROMIUM: "${CHECKER_INSTALL_CHROMIUM:-true}"
     <<: [*restart, *logging]
     env_file: .env
     environment:

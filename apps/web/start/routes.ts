@@ -10,6 +10,7 @@
 import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
 import router from '@adonisjs/core/services/router'
+import { authThrottle } from '#start/limiter'
 
 router.group(() => {
   router.get('', [controllers.Home, 'index']).as('home.index')
@@ -25,15 +26,21 @@ router.group(() => {
 router
   .group(() => {
     router.get('signup', [controllers.NewAccount, 'create'])
-    router.post('signup', [controllers.NewAccount, 'store'])
+    router.post('signup', [controllers.NewAccount, 'store']).use(authThrottle)
 
     router.get('login', [controllers.Session, 'create'])
-    router.post('login', [controllers.Session, 'store'])
+    router.post('login', [controllers.Session, 'store']).use(authThrottle)
 
     router.get('forgot-password', [controllers.Auth, 'forgotPassword']).as('password.forgot')
-    router.post('forgot-password', [controllers.Auth, 'sendResetLink']).as('password.email')
+    router
+      .post('forgot-password', [controllers.Auth, 'sendResetLink'])
+      .as('password.email')
+      .use(authThrottle)
     router.get('reset-password/:token', [controllers.Auth, 'resetPassword']).as('password.reset')
-    router.post('reset-password', [controllers.Auth, 'updatePassword']).as('password.update')
+    router
+      .post('reset-password', [controllers.Auth, 'updatePassword'])
+      .as('password.update')
+      .use(authThrottle)
   })
   .use(middleware.guest())
 

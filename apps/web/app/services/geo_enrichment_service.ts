@@ -52,8 +52,11 @@ export class GeoEnrichmentService {
   }
 
   tickSeconds() {
-    const v = Number(env.get('GEO_ENRICHMENT_TICK_SECONDS', 120))
-    return Number.isFinite(v) ? Math.max(Math.floor(v), 60) : 120
+    // Default 30s so freshly async-checked (scraped/imported) proxies get their
+    // country/ASN within ~30s — practically instant for the workflow — while
+    // staying well under ip-api's batch rate limit (~4 req/min at this cadence).
+    const v = Number(env.get('GEO_ENRICHMENT_TICK_SECONDS', 30))
+    return Number.isFinite(v) ? Math.max(Math.floor(v), 15) : 30
   }
 
   batchLimit() {

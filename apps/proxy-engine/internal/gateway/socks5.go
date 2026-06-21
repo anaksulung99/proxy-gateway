@@ -164,7 +164,7 @@ func (s *Socks5Server) handle(conn net.Conn) {
 		}
 		lastErr = derr
 		s.gw.observeUpstreamFailure(dialCtx, cfg.ID, upstream, wrapUpstreamRuntimeError(derr))
-		s.gw.sel.Invalidate(dialCtx, listID, cfg.Rotation, sessionID)
+		s.gw.sel.Invalidate(dialCtx, listID, cfg.Rotation, sessionID, country)
 		excluded = append(excluded, upstream.ID)
 	}
 

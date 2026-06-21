@@ -44,10 +44,18 @@ func (a *OpenproxyListAdapter) Scrape() ([]ProxyEntry, error) {
 		},
 	}
 
+	// This source aggregates several thousand proxies; cap how many we emit per
+	// run so it doesn't flood the import. 0/unset → default 2000.
+	maxEntries := envInt("OPENPROXY_LIST_MAX_ENTRIES", 0)
+	if maxEntries <= 0 {
+		maxEntries = envInt("SCRAPER_MAX_ENTRIES_PER_RUN", 2000)
+	}
+
 	seen := map[string]bool{}
 	var out []ProxyEntry
 	var failures []string
 
+collect:
 	for _, source := range sources {
 		body, err := httpGetAny(source.urls...)
 		if err != nil {
@@ -62,6 +70,10 @@ func (a *OpenproxyListAdapter) Scrape() ([]ProxyEntry, error) {
 			}
 			seen[key] = true
 			out = append(out, entry)
+			if maxEntries > 0 && len(out) >= maxEntries {
+				a.log.Warn().Int("cap", maxEntries).Msg("openproxy-list hit per-run entry cap; truncating")
+				break collect
+			}
 		}
 	}
 

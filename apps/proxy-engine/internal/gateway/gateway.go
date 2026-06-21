@@ -256,7 +256,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var lastOutcome upstreamResult
 	var selectedUpstream pool.Upstream
 	for attempt := 1; attempt <= attemptLimit; attempt++ {
-		upstream, err := g.sel.Pick(r.Context(), listID, cfg.Rotation, sessionID, remaining)
+		upstream, err := g.sel.Pick(r.Context(), listID, cfg.Rotation, sessionID, country, remaining)
 		if err != nil {
 			lastErr = err
 			break
@@ -310,7 +310,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if isUpstreamRuntimeFailure(reqErr) {
 			g.observeUpstreamFailure(r.Context(), cfg.ID, upstream, reqErr)
 		}
-		g.sel.Invalidate(r.Context(), listID, cfg.Rotation, sessionID)
+		g.sel.Invalidate(r.Context(), listID, cfg.Rotation, sessionID, country)
 		remaining = withoutUpstreamID(remaining, upstream.ID)
 		g.log.Warn().
 			Err(reqErr).
@@ -433,7 +433,7 @@ func (g *Gateway) selectUpstream(ctx context.Context, listID int64, sessionID, c
 	for _, id := range exclude {
 		candidates = withoutUpstreamID(candidates, id)
 	}
-	upstream, err := g.sel.Pick(ctx, listID, cfg.Rotation, sessionID, candidates)
+	upstream, err := g.sel.Pick(ctx, listID, cfg.Rotation, sessionID, country, candidates)
 	if err != nil {
 		return pool.Upstream{}, cfg, err
 	}
