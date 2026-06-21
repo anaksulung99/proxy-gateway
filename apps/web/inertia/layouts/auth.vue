@@ -17,7 +17,7 @@
     </div>
     <div class="bg-muted relative hidden lg:block">
       <img
-        src="https://cdn.mos.cms.futurecdn.net/v2/t:41,l:0,cw:6997,ch:3935,q:80,w:2560/c6nDwMzYYwipHEZpZkRZb4.jpg"
+        src="/images/cover1.jpg"
         alt="Image"
         class="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
       />
