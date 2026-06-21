@@ -1,7 +1,11 @@
+# syntax=docker/dockerfile:1.7
 # ============================================================
 # AdonisJS web (Inertia + Vue) — build context = repo root
 # ============================================================
 FROM node:24-alpine AS base
+ENV PNPM_HOME=/pnpm \
+    PNPM_STORE_DIR=/pnpm/store \
+    PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
 
@@ -14,7 +18,8 @@ COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
 # pnpm 11 errors on un-approved dependency build scripts (esbuild, better-sqlite3,
 # etc.). The build-approval config lives in the repo-root pnpm-workspace.yaml,
 # which isn't in this single-package context — so explicitly allow builds here.
-RUN pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
+RUN --mount=type=cache,id=web-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prefer-offline --config.dangerouslyAllowAllBuilds=true
 
 # ---- compile TypeScript + build Vite assets -> /app/build ----
 FROM base AS build
@@ -40,8 +45,9 @@ RUN apk add --no-cache wget
 # `node ace build` emits a self-contained app in ./build (incl package.json + lockfile)
 COPY --from=build /app/build ./
 # Build tools only for the native rebuild, then removed to keep the image lean.
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
- && pnpm install --prod --frozen-lockfile --config.dangerouslyAllowAllBuilds=true \
+RUN --mount=type=cache,id=web-pnpm-store,target=/pnpm/store \
+    apk add --no-cache --virtual .build-deps python3 make g++ \
+ && pnpm install --prod --frozen-lockfile --prefer-offline --config.dangerouslyAllowAllBuilds=true \
  && apk del .build-deps
 COPY infra/docker/web-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

@@ -160,6 +160,23 @@ function fmtDate(value: string | null) {
       </Link>
     </div>
 
+    <div class="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="font-medium">Halaman ini hanya untuk health check runs</p>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Jika source scraper gagal fetch/import sebelum auto-check dibuat, detail error-nya
+            muncul di Scraper Logs, bukan di halaman ini.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" as-child>
+          <Link href="/app/scraper/logs">
+            <Icon icon="lucide:logs" class="mr-1 size-4" /> Open scraper logs
+          </Link>
+        </Button>
+      </div>
+    </div>
+
     <Card class="border-border/70">
       <CardHeader>
         <CardTitle>Health Check Run History</CardTitle>

@@ -80,8 +80,13 @@ func (s *Socks5Server) handle(conn net.Conn) {
 		return
 	}
 	ctx := context.Background()
-	listID, sessionID, country, auth, ok := s.gw.authorize(ctx, user, pass)
+	listID, sessionID, country, auth, reason, ok := s.gw.authorize(ctx, user, pass)
 	if !ok {
+		s.gw.log.Warn().
+			Str("remote_addr", conn.RemoteAddr().String()).
+			Str("username", user).
+			Str("reason", reason).
+			Msg("socks5 authentication failed")
 		_, _ = conn.Write([]byte{0x01, 0x01}) // auth failure
 		return
 	}

@@ -1,5 +1,5 @@
 import { test } from '@japa/runner'
-import scraperPipeline from '#services/scraper_pipeline_service'
+import scraperPipeline, { getSourceScrapeError } from '#services/scraper_pipeline_service'
 
 test.group('Scraper pipeline service', () => {
   test('build import blob preserves protocol per proxy', ({ assert }) => {
@@ -14,6 +14,34 @@ test.group('Scraper pipeline service', () => {
   test('cron label falls back to manual mode', ({ assert }) => {
     assert.equal(scraperPipeline.cronLabel(null), 'Manual only')
     assert.equal(scraperPipeline.cronLabel('  */15 * * * *  '), '*/15 * * * *')
+  })
+
+  test('extracts per-source scrape errors from scraper results', ({ assert }) => {
+    const error = getSourceScrapeError(
+      {
+        total: 0,
+        proxies: [],
+        bySource: {
+          geonode: { count: 0, error: 'remote site returned 403' },
+          proxyscrape: { count: 120 },
+        },
+      },
+      'geonode'
+    )
+
+    assert.equal(error, 'remote site returned 403')
+    assert.isNull(
+      getSourceScrapeError(
+        {
+          total: 120,
+          proxies: [],
+          bySource: {
+            proxyscrape: { count: 120 },
+          },
+        },
+        'proxyscrape'
+      )
+    )
   })
 
   test('summarize batch aggregates source run results', ({ assert }) => {

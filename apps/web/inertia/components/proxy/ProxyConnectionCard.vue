@@ -118,6 +118,13 @@ function copy(value: string, label: string) {
         </Button>
       </div>
 
+      <div class="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+        <Icon icon="lucide:key-round" class="mr-1 inline size-3.5" />
+        Password untuk koneksi list ini adalah API key aktif dari server ini. Jika test `curl`
+        membalas `407`, biasanya penyebabnya API key salah, sudah di-revoke, berasal dari server
+        lain, atau username list tidak cocok.
+      </div>
+
       <!-- Connection string -->
       <div class="grid gap-1.5">
         <Label class="text-xs">Connection string</Label>

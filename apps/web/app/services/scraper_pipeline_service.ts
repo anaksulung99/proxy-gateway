@@ -2,7 +2,10 @@ import ScraperSource from '#models/scraper_source'
 import type ProxyList from '#models/proxy_list'
 import ScraperRun from '#models/scraper_run'
 import importService, { type ImportSummary } from '#services/proxy_import_service'
-import scraperClient, { type ScrapedProxy } from '#services/scraper_client_service'
+import scraperClient, {
+  type ScrapeResult,
+  type ScrapedProxy,
+} from '#services/scraper_client_service'
 import type { CheckMode } from '#services/health_check_client_service'
 import { DateTime } from 'luxon'
 
@@ -49,6 +52,12 @@ export type ScraperRunTrigger = 'manual' | 'batch' | 'scheduled'
 export interface RunSourceOptions {
   requestedMode?: CheckMode
   triggerType?: ScraperRunTrigger
+}
+
+export function getSourceScrapeError(result: ScrapeResult, sourceKey: string) {
+  const sourceResult = result.bySource[sourceKey]
+  const message = typeof sourceResult?.error === 'string' ? sourceResult.error.trim() : ''
+  return message || null
 }
 
 const KNOWN_SOURCES: KnownSource[] = [
@@ -151,6 +160,26 @@ export class ScraperPipelineService {
 
     try {
       const scraped = await scraperClient.scrape([source.sourceKey])
+      const sourceError = getSourceScrapeError(scraped, source.sourceKey)
+      if (sourceError) {
+        const finishedAt = DateTime.now()
+        source.lastRunAt = finishedAt
+        await source.save()
+
+        run.status = 'error'
+        run.errorMessage = `${source.name}: ${sourceError}`
+        run.meta = {
+          stage: 'failed',
+          stageLabel: 'Source scrape failed',
+          progressCurrent: 1,
+          progressTotal: 3,
+          bySource: scraped.bySource,
+        }
+        run.finishedAt = finishedAt
+        await run.save()
+        throw new Error(run.errorMessage)
+      }
+
       run.scrapedTotal = scraped.total
       run.meta = {
         stage: 'importing',
@@ -220,6 +249,11 @@ export class ScraperPipelineService {
     } catch (error) {
       run.status = 'error'
       run.errorMessage = (error as Error).message
+      run.meta = {
+        ...(run.meta ?? {}),
+        stage: 'failed',
+        stageLabel: 'Scraper run failed',
+      }
       run.finishedAt = DateTime.now()
       await run.save()
       throw error

@@ -102,10 +102,20 @@ func (g *Gateway) currentSecret() string {
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startedAt := time.Now()
 	targetHost, targetPort, targetScheme := targetDetails(r)
-	listID, sessionID, country, auth, ok := g.authenticate(r)
+	listID, sessionID, country, auth, authUser, authReason, ok := g.authenticate(r)
 	if !ok {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="proxy"`)
 		http.Error(w, "Proxy authentication required", http.StatusProxyAuthRequired)
+		g.log.Warn().
+			Str("remote_addr", r.RemoteAddr).
+			Str("method", r.Method).
+			Str("username", authUser).
+			Str("reason", authReason).
+			Msg("proxy authentication failed")
+		errorMessage := "proxy authentication required"
+		if authReason != "" {
+			errorMessage = "proxy authentication required: " + authReason
+		}
 		g.recordUsage(usage.Event{
 			RequestMethod:   r.Method,
 			TargetHost:      targetHost,
@@ -117,7 +127,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			AttemptCount:    0,
 			DurationMs:      time.Since(startedAt).Milliseconds(),
 			CountryOverride: country,
-			ErrorMessage:    "proxy authentication required",
+			ErrorMessage:    errorMessage,
 			RequestedAt:     startedAt.UTC(),
 		})
 		return
@@ -357,44 +367,48 @@ func (g *Gateway) observeUpstreamFailure(ctx context.Context, listID int64, upst
 }
 
 // authenticate parses Proxy-Authorization (Basic) and delegates to authorize.
-func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
+func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, country string, auth authIdentity, user, reason string, ok bool) {
 	h := r.Header.Get("Proxy-Authorization")
+	if h == "" {
+		return 0, "", "", authIdentity{}, "", "missing Proxy-Authorization header", false
+	}
 	if !strings.HasPrefix(h, "Basic ") {
-		return 0, "", "", authIdentity{}, false
+		return 0, "", "", authIdentity{}, "", "unsupported proxy auth scheme", false
 	}
 	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(h, "Basic "))
 	if err != nil {
-		return 0, "", "", authIdentity{}, false
+		return 0, "", "", authIdentity{}, "", "invalid basic auth encoding", false
 	}
 	user, pass, found := strings.Cut(string(raw), ":")
 	if !found {
-		return 0, "", "", authIdentity{}, false
+		return 0, "", "", authIdentity{}, user, "malformed basic auth credentials", false
 	}
-	return g.authorize(r.Context(), user, pass)
+	listID, sessionID, country, auth, reason, ok = g.authorize(r.Context(), user, pass)
+	return listID, sessionID, country, auth, user, reason, ok
 }
 
 // authorize validates the password (master GATEWAY_SECRET, which works for any
 // list, or a per-team API key whose team must match the list) and parses the
 // routing username ("list-<id>[-session-<sid>][-country-<cc>]" or a bare id).
 // Shared by the HTTP and SOCKS5 frontends.
-func (g *Gateway) authorize(ctx context.Context, user, pass string) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
+func (g *Gateway) authorize(ctx context.Context, user, pass string) (listID int64, sessionID, country string, auth authIdentity, reason string, ok bool) {
 	if secret := g.currentSecret(); secret != "" && subtle.ConstantTimeCompare([]byte(pass), []byte(secret)) == 1 {
 		auth.master = true
 	} else if g.keys != nil {
 		teamID, keyID, quota, valid := g.keys.Validate(ctx, pass)
 		if !valid {
-			return 0, "", "", authIdentity{}, false
+			return 0, "", "", authIdentity{}, "invalid or revoked gateway API key", false
 		}
 		auth.teamID, auth.keyID, auth.keyQuotaBytes = teamID, keyID, quota
 	} else {
-		return 0, "", "", authIdentity{}, false
+		return 0, "", "", authIdentity{}, "gateway secret is not configured", false
 	}
 
 	listID, sessionID, country = parseUser(user)
 	if listID == 0 {
-		return 0, "", "", authIdentity{}, false
+		return 0, "", "", authIdentity{}, "invalid proxy username format", false
 	}
-	return listID, sessionID, country, auth, true
+	return listID, sessionID, country, auth, "", true
 }
 
 // selectUpstream resolves a list + filters + picks an upstream for the given
