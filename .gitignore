@@ -22,6 +22,9 @@ apps/web/.env
 
 # Go build artifacts
 apps/*/bin/
+# ...but apps/web/bin holds AdonisJS source entrypoints (console/server/test.ts)
+# that MUST be committed, otherwise `node ace build` fails on a fresh checkout.
+!apps/web/bin/
 apps/*/*.exe
 apps/*/vendor/
 
