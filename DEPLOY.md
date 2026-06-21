@@ -7,17 +7,17 @@ Self-contained stack: **web** (AdonisJS) · **proxy-engine** (HTTP+SOCKS5 gatewa
 ## 1. Prerequisites
 - Docker Engine + Docker Compose v2 (`docker compose version`).
 
-## 2. Ports — coexisting with your native services
-Your Ubuntu server already runs **native** postgres/redis/rabbitmq on the default
-ports. The containers here listen on the default ports *inside* the docker network
-(apps reach them by hostname), but are **published to the host on changed ports** so
-nothing clashes:
+## 2. Ports — datastores
+Apps reach the datastores **inside** the docker network by hostname on their default
+internal ports (`postgres:5432`, `redis:6379`, `rabbitmq:5672`). They are also
+**published to the host on `127.0.0.1` only** (reach them via SSH tunnel — see §6),
+never the public internet:
 
-| Service   | Native (host) | Container host-publish (this stack) |
-|-----------|---------------|-------------------------------------|
-| Postgres  | 5432          | **5433** (`POSTGRES_HOST_PORT`)     |
-| Redis     | 6379          | **6380** (`REDIS_HOST_PORT`)        |
-| RabbitMQ  | 5672 / 15672  | **5673 / 15673** (`RABBITMQ_HOST_PORT`, `RABBITMQ_MGMT_HOST_PORT`) |
+| Service   | Internal | Host publish (127.0.0.1) | Note |
+|-----------|----------|--------------------------|------|
+| Postgres  | 5432     | **5432** (`POSTGRES_HOST_PORT`) | default; no native postgres on this host |
+| Redis     | 6379     | **6379** (`REDIS_HOST_PORT`)    | default; no native redis on this host |
+| RabbitMQ  | 5672 / 15672 | **5673 / 15673** (`RABBITMQ_HOST_PORT`, `RABBITMQ_MGMT_HOST_PORT`) | shifted because a **native rabbitmq** still runs on 5672/15672 |
 
 Proxy/app ports published to the host:
 
@@ -101,6 +101,28 @@ passthrough example is in the nginx file.)
 For Grafana and the admin tools: edit the `server_name`, run `certbot -d <subdomain>`,
 and bind those containers to `127.0.0.1` in `docker-compose.yml`. RabbitMQ/Prometheus
 have weak built-in auth — keep them off the open internet or behind nginx Basic-Auth.
+
+### Remote DB admin from your laptop (SSH tunnel — do NOT expose DB ports publicly)
+Postgres/Redis/RabbitMQ are **raw TCP** services with no domain concept, and putting
+them on the public internet is a major risk. They're published on the server's
+`127.0.0.1` only. To reach them from your laptop (DBeaver, redis-cli, RabbitMQ UI),
+forward the ports over SSH — encrypted, no public exposure:
+```bash
+ssh -N \
+  -L 5432:127.0.0.1:5432 \    # postgres
+  -L 6379:127.0.0.1:6379 \    # redis
+  -L 5673:127.0.0.1:5673 \    # rabbitmq amqp
+  -L 15673:127.0.0.1:15673 \  # rabbitmq management UI
+  root@<server-ip>
+```
+Then connect on your laptop to `127.0.0.1` with the matching port and the
+credentials from your server `.env`:
+- **Postgres** — `127.0.0.1:5432`, db `proxy_system`, user/pass = `DB_USER`/`DB_PASSWORD`
+- **Redis** — `127.0.0.1:6379`, auth = `REDIS_PASSWORD`
+- **RabbitMQ** — AMQP `127.0.0.1:5673`; management UI `http://127.0.0.1:15673` (user/pass = `RABBITMQ_USER`/`RABBITMQ_PASSWORD`)
+
+(RabbitMQ stays on `5673/15673` because a native rabbitmq still uses `5672/15672`
+on this host. Containers always listen internally on `5432/6379/5672/15672`.)
 
 ## 7. Using your NATIVE postgres/redis/rabbitmq instead of the containers
 Don't start the bundled datastores; point the apps at the host:
