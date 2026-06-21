@@ -18,4 +18,5 @@ export const controllers = {
   Session: () => import('#controllers/session_controller'),
   Teams: () => import('#controllers/teams_controller'),
   ToolsChecker: () => import('#controllers/tools_checker_controller'),
+  Docs: () => import('#controllers/docs_controller'),
 }

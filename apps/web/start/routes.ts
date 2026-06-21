@@ -57,6 +57,9 @@ router
     router
       .get('runtime/quarantine', [controllers.Dashboard, 'runtimeQuarantine'])
       .as('dashboard.runtimeQuarantine')
+    router
+      .get('docs/external-proxy-testing', [controllers.Docs, 'externalProxyTesting'])
+      .as('docs.externalProxyTesting')
 
     // Proxy lists
     router.get('proxy-lists', [controllers.ProxyLists, 'index']).as('proxy-lists.index')

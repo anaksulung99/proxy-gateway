@@ -37,6 +37,9 @@ export interface ApiDefinition {
     tasks: typeof routes['dashboard.tasks']
     runtimeQuarantine: typeof routes['dashboard.runtimeQuarantine']
   }
+  docs: {
+    externalProxyTesting: typeof routes['docs.externalProxyTesting']
+  }
   proxyLists: {
     index: typeof routes['proxy-lists.index']
     store: typeof routes['proxy-lists.store']

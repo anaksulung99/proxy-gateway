@@ -58,7 +58,7 @@ watch(
           <span
             class="font-bold text-xl tracking-tight bg-linear-to-r from-foreground to-foreground/80 bg-clip-text"
           >
-            Proxify<span class="text-sky-500">.</span>
+            SmartBoost Labs<span class="text-sky-500">.</span>
           </span>
         </Link>
 
@@ -289,7 +289,7 @@ watch(
                 <Icon icon="lucide:shield-check" class="h-5 w-5" />
               </div>
               <span class="font-bold text-lg tracking-tight"
-                >Proxify<span class="text-sky-500">.</span></span
+                >SmartBoost Labs<span class="text-sky-500">.</span></span
               >
             </Link>
             <p class="text-sm text-muted-foreground leading-relaxed">

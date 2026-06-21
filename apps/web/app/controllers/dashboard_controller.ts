@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import db from '@adonisjs/lucid/services/db'
 import ProxyList from '#models/proxy_list'
 import ScraperSource from '#models/scraper_source'
@@ -52,11 +51,11 @@ export default class DashboardController {
 
     const perListRows = listIds.length
       ? await db
-        .from('proxy_entries')
-        .whereIn('proxy_list_id', listIds)
-        .select('proxy_list_id', 'status')
-        .count('* as c')
-        .groupBy('proxy_list_id', 'status')
+          .from('proxy_entries')
+          .whereIn('proxy_list_id', listIds)
+          .select('proxy_list_id', 'status')
+          .count('* as c')
+          .groupBy('proxy_list_id', 'status')
       : []
 
     const perListStatus = new Map<
@@ -90,6 +89,8 @@ export default class DashboardController {
       proxyEngineRuntime,
       scraperHealthSnapshot,
       usageOverviewRows,
+      tunnelUsageSummaryRow,
+      recentTunnelIssueRows,
       usageTopTargetRow,
       usageTopPoolRow,
       runtimeQuarantineSummaryRow,
@@ -136,6 +137,76 @@ export default class DashboardController {
         .where('team_id', team.id)
         .if(selectedPool !== null, (query) => query.where('proxy_list_id', selectedPool!.id))
         .where('requested_at', '>=', last24h.toSQL()!)
+        .where('is_tunnel', true)
+        .count('* as total')
+        .select(
+          db.raw('SUM(CASE WHEN success THEN 1 ELSE 0 END) as established_count'),
+          db.raw('SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failed_connect_count'),
+          db.raw(`
+            SUM(
+              CASE
+                WHEN success AND LOWER(COALESCE(error_message, '')) LIKE '%upstream stream error%'
+                THEN 1 ELSE 0
+              END
+            ) as upstream_issue_count
+          `),
+          db.raw(`
+            SUM(
+              CASE
+                WHEN success AND LOWER(COALESCE(error_message, '')) LIKE '%client stream error%'
+                THEN 1 ELSE 0
+              END
+            ) as client_issue_count
+          `),
+          db.raw(`
+            SUM(
+              CASE
+                WHEN success AND LOWER(COALESCE(error_message, '')) LIKE '%no payload%'
+                THEN 1 ELSE 0
+              END
+            ) as no_payload_count
+          `),
+          db.raw('MAX(requested_at) as latest_requested_at')
+        )
+        .first(),
+      db
+        .from('proxy_usage_logs')
+        .leftJoin('proxy_lists', 'proxy_usage_logs.proxy_list_id', 'proxy_lists.id')
+        .where('proxy_usage_logs.team_id', team.id)
+        .if(selectedPool !== null, (query) =>
+          query.where('proxy_usage_logs.proxy_list_id', selectedPool!.id)
+        )
+        .where('proxy_usage_logs.requested_at', '>=', last24h.toSQL()!)
+        .where('proxy_usage_logs.is_tunnel', true)
+        .where((query) => {
+          query.where('proxy_usage_logs.success', false).orWhere((builder) => {
+            builder.where('proxy_usage_logs.success', true).where((messageQuery) => {
+              messageQuery
+                .whereILike('proxy_usage_logs.error_message', '%upstream stream error%')
+                .orWhereILike('proxy_usage_logs.error_message', '%client stream error%')
+                .orWhereILike('proxy_usage_logs.error_message', '%no payload%')
+            })
+          })
+        })
+        .select(
+          'proxy_usage_logs.id',
+          'proxy_usage_logs.proxy_list_id',
+          'proxy_usage_logs.request_method',
+          'proxy_usage_logs.target_host',
+          'proxy_usage_logs.target_port',
+          'proxy_usage_logs.target_scheme',
+          'proxy_usage_logs.success',
+          'proxy_usage_logs.error_message',
+          'proxy_usage_logs.requested_at',
+          'proxy_lists.name as proxy_list_name'
+        )
+        .orderBy('proxy_usage_logs.requested_at', 'desc')
+        .limit(5),
+      db
+        .from('proxy_usage_logs')
+        .where('team_id', team.id)
+        .if(selectedPool !== null, (query) => query.where('proxy_list_id', selectedPool!.id))
+        .where('requested_at', '>=', last24h.toSQL()!)
         .whereNotNull('target_host')
         .select('target_host')
         .count('* as request_count')
@@ -160,7 +231,9 @@ export default class DashboardController {
         .innerJoin('proxy_entries', 'proxy_entries.id', 'health_results.proxy_entry_id')
         .where('health_results.checked_at', '>=', last24h.toSQL()!)
         .where('health_results.error_message', 'like', '[runtime]%')
-        .if(selectedPool !== null, (query) => query.where('proxy_entries.proxy_list_id', selectedPool!.id))
+        .if(selectedPool !== null, (query) =>
+          query.where('proxy_entries.proxy_list_id', selectedPool!.id)
+        )
         .count('* as total')
         .select(
           ...this.runtimeSummarySelects(runtimeResolutionSupported),
@@ -173,7 +246,9 @@ export default class DashboardController {
         .innerJoin('proxy_entries', 'proxy_entries.id', 'health_results.proxy_entry_id')
         .leftJoin('proxy_lists', 'proxy_lists.id', 'proxy_entries.proxy_list_id')
         .where('health_results.error_message', 'like', '[runtime]%')
-        .if(selectedPool !== null, (query) => query.where('proxy_entries.proxy_list_id', selectedPool!.id))
+        .if(selectedPool !== null, (query) =>
+          query.where('proxy_entries.proxy_list_id', selectedPool!.id)
+        )
         .select(
           'health_results.id',
           'health_results.checked_at',
@@ -238,6 +313,41 @@ export default class DashboardController {
     const usageFailed24h = Number(usageOverview?.failed_requests ?? 0)
     const usageSuccessRate24h =
       usageRequests24h > 0 ? Math.round((usageSuccessful24h / usageRequests24h) * 100) : 0
+    const tunnelDiagnostics = {
+      total24h: Number(tunnelUsageSummaryRow?.total ?? 0),
+      established24h: Number(tunnelUsageSummaryRow?.established_count ?? 0),
+      failedConnect24h: Number(tunnelUsageSummaryRow?.failed_connect_count ?? 0),
+      upstreamIssues24h: Number(tunnelUsageSummaryRow?.upstream_issue_count ?? 0),
+      clientIssues24h: Number(tunnelUsageSummaryRow?.client_issue_count ?? 0),
+      noPayload24h: Number(tunnelUsageSummaryRow?.no_payload_count ?? 0),
+      latestAt:
+        typeof tunnelUsageSummaryRow?.latest_requested_at === 'string'
+          ? tunnelUsageSummaryRow.latest_requested_at
+          : tunnelUsageSummaryRow?.latest_requested_at
+            ? new Date(tunnelUsageSummaryRow.latest_requested_at).toISOString()
+            : null,
+      recentIssues: recentTunnelIssueRows.map((row: any) => {
+        const phase = this.tunnelIssuePhase(row.success, row.error_message)
+        return {
+          id: Number(row.id),
+          proxyListId: row.proxy_list_id ? Number(row.proxy_list_id) : null,
+          proxyListName: row.proxy_list_name ?? 'Unknown pool',
+          requestMethod: row.request_method ?? 'CONNECT',
+          targetLabel: this.tunnelTargetLabel(row),
+          phase,
+          phaseLabel: this.tunnelPhaseLabel(phase),
+          requestedAt:
+            typeof row.requested_at === 'string'
+              ? row.requested_at
+              : new Date(row.requested_at).toISOString(),
+          message: row.error_message ?? 'Tunnel issue detected',
+          href: this.tunnelAnalyticsHref(
+            phase,
+            row.proxy_list_id ? Number(row.proxy_list_id) : null
+          ),
+        }
+      }),
+    }
     const runtimeQuarantine = {
       total24h: Number(runtimeQuarantineSummaryRow?.total ?? 0),
       active24h: Number(runtimeQuarantineSummaryRow?.active_count ?? 0),
@@ -276,13 +386,14 @@ export default class DashboardController {
         status: this.runtimeFailureStatus(row.error_message, row.proxy_status),
         resolution: row.resolved_at ? ('resolved' as const) : ('active' as const),
         checkedAt:
-          typeof row.checked_at === 'string' ? row.checked_at : new Date(row.checked_at).toISOString(),
-        resolvedAt:
-          !row.resolved_at
-            ? null
-            : typeof row.resolved_at === 'string'
-              ? row.resolved_at
-              : new Date(row.resolved_at).toISOString(),
+          typeof row.checked_at === 'string'
+            ? row.checked_at
+            : new Date(row.checked_at).toISOString(),
+        resolvedAt: !row.resolved_at
+          ? null
+          : typeof row.resolved_at === 'string'
+            ? row.resolved_at
+            : new Date(row.resolved_at).toISOString(),
         resolvedByRunId: row.resolved_by_run_id ? Number(row.resolved_by_run_id) : null,
         errorMessage:
           typeof row.error_message === 'string'
@@ -292,51 +403,51 @@ export default class DashboardController {
     }
     const scraperHealth = scraperHealthSnapshot.ok
       ? {
-        ok: true as const,
-        generatedAt: scraperHealthSnapshot.summary.generatedAt,
-        overview: scraperHealthSnapshot.summary.overview,
-        attentionSources: scraperHealthSnapshot.summary.sources
-          .filter((source) => source.status !== 'healthy' && source.status !== 'idle')
-          .sort((a, b) => {
-            const severity = {
-              misconfigured: 0,
-              error: 1,
-              degraded: 2,
-              idle: 3,
-              healthy: 4,
-            }
-            const severityDiff =
-              severity[a.status as keyof typeof severity] -
-              severity[b.status as keyof typeof severity]
-            if (severityDiff !== 0) return severityDiff
-            return b.consecutiveFailures - a.consecutiveFailures
-          })
-          .slice(0, 5)
-          .map((source) => ({
-            source: source.source,
-            status: source.status,
-            lastResult: source.lastResult,
-            lastRunAt: source.lastRunAt,
-            lastSuccessAt: source.lastSuccessAt,
-            lastDurationMs: source.lastDurationMs,
-            lastEntries: source.lastEntries,
-            consecutiveFailures: source.consecutiveFailures,
-            logsHref: `/app/scraper/logs?${new URLSearchParams({ sourceKey: source.source }).toString()}`,
-            triggers: source.triggers.map((trigger) => ({
-              trigger: trigger.trigger,
-              status: trigger.status,
-              totalRuns: trigger.totalRuns,
-              successfulRuns: trigger.successfulRuns,
-              errorRuns: trigger.errorRuns,
-              consecutiveFailures: trigger.consecutiveFailures,
-              lastRunAt: trigger.lastRunAt,
+          ok: true as const,
+          generatedAt: scraperHealthSnapshot.summary.generatedAt,
+          overview: scraperHealthSnapshot.summary.overview,
+          attentionSources: scraperHealthSnapshot.summary.sources
+            .filter((source) => source.status !== 'healthy' && source.status !== 'idle')
+            .sort((a, b) => {
+              const severity = {
+                misconfigured: 0,
+                error: 1,
+                degraded: 2,
+                idle: 3,
+                healthy: 4,
+              }
+              const severityDiff =
+                severity[a.status as keyof typeof severity] -
+                severity[b.status as keyof typeof severity]
+              if (severityDiff !== 0) return severityDiff
+              return b.consecutiveFailures - a.consecutiveFailures
+            })
+            .slice(0, 5)
+            .map((source) => ({
+              source: source.source,
+              status: source.status,
+              lastResult: source.lastResult,
+              lastRunAt: source.lastRunAt,
+              lastSuccessAt: source.lastSuccessAt,
+              lastDurationMs: source.lastDurationMs,
+              lastEntries: source.lastEntries,
+              consecutiveFailures: source.consecutiveFailures,
+              logsHref: `/app/scraper/logs?${new URLSearchParams({ sourceKey: source.source }).toString()}`,
+              triggers: source.triggers.map((trigger) => ({
+                trigger: trigger.trigger,
+                status: trigger.status,
+                totalRuns: trigger.totalRuns,
+                successfulRuns: trigger.successfulRuns,
+                errorRuns: trigger.errorRuns,
+                consecutiveFailures: trigger.consecutiveFailures,
+                lastRunAt: trigger.lastRunAt,
+              })),
             })),
-          })),
-      }
+        }
       : {
-        ok: false as const,
-        error: scraperHealthSnapshot.error,
-      }
+          ok: false as const,
+          error: scraperHealthSnapshot.error,
+        }
 
     const pools = proxyLists
       .map((list) => {
@@ -421,6 +532,61 @@ export default class DashboardController {
         tone: proxyEngineRuntime.configured ? 'warning' : 'info',
         href: '/app/settings/team',
       })
+    } else {
+      const runtimeMetrics = proxyEngineRuntime.runtime.metrics
+      const tunnelFailureTotal =
+        runtimeMetrics.tunnel.connectFailed + runtimeMetrics.tunnel.upstreamIssues
+      const observedGap =
+        runtimeMetrics.runtimeFailures.observedTotal -
+        runtimeMetrics.runtimeFailures.quarantinedTotal
+
+      if (proxyEngineRuntime.runtime.usageDropped > 0) {
+        alerts.push({
+          title: `${proxyEngineRuntime.runtime.usageDropped} usage log sempat ter-drop`,
+          detail:
+            'Async sink proxy-engine pernah penuh. Periksa tekanan trafik, latency database, atau ukuran buffer usage sink sebelum audit log kehilangan event tambahan.',
+          tone: proxyEngineRuntime.runtime.usageDropped >= 10 ? 'critical' : 'warning',
+          href: '/app/analytics',
+        })
+      }
+
+      if (
+        runtimeMetrics.requests.total >= 20 &&
+        (tunnelFailureTotal >= 5 ||
+          (runtimeMetrics.requests.tunnelTotal > 0 &&
+            tunnelFailureTotal / runtimeMetrics.requests.tunnelTotal >= 0.3))
+      ) {
+        alerts.push({
+          title: `${tunnelFailureTotal} runtime tunnel failure sejak engine start`,
+          detail: `${runtimeMetrics.tunnel.connectFailed} connect failed · ${runtimeMetrics.tunnel.upstreamIssues} upstream issue · ${runtimeMetrics.tunnel.clientIssues} client issue. Cocokkan dengan Tunnel Diagnostics untuk melihat pool/target yang dominan.`,
+          tone:
+            tunnelFailureTotal >= 10 ||
+            (runtimeMetrics.requests.tunnelTotal > 0 &&
+              tunnelFailureTotal / runtimeMetrics.requests.tunnelTotal >= 0.5)
+              ? 'critical'
+              : 'warning',
+          href: '/app/analytics?trafficType=tunnel&tunnelPhase=issues',
+        })
+      }
+
+      if (observedGap >= 5) {
+        alerts.push({
+          title: `${observedGap} runtime failure belum sampai tahap quarantine`,
+          detail: `${runtimeMetrics.runtimeFailures.observedTotal} observed vs ${runtimeMetrics.runtimeFailures.quarantinedTotal} quarantined. Bisa berarti threshold/window masih terlalu longgar atau failure tersebar lintas proxy sebelum memenuhi syarat quarantine.`,
+          tone: observedGap >= 10 ? 'warning' : 'info',
+          href: '/app/runtime/quarantine',
+        })
+      }
+
+      if (runtimeQuarantine.active24h > 0 && !runtimeMetrics.config.runtimeAutoRecheckEnabled) {
+        alerts.push({
+          title: 'Runtime auto recheck sedang nonaktif',
+          detail:
+            'Masih ada proxy aktif di runtime quarantine, tetapi policy auto recheck saat ini disabled. Proxy akan menunggu recheck manual sampai config diaktifkan lagi.',
+          tone: 'warning',
+          href: '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck',
+        })
+      }
     }
     if (scraperHealth.ok && scraperHealth.overview.misconfigured > 0) {
       alerts.push({
@@ -463,13 +629,16 @@ export default class DashboardController {
         title: `${runtimeQuarantine.active24h} proxy masih aktif di runtime quarantine`,
         detail: `${runtimeQuarantine.timeout24h} timeout · ${runtimeQuarantine.unhealthy24h} unhealthy · ${runtimeQuarantine.resolved24h} resolved dalam 24 jam`,
         tone:
-          runtimeQuarantine.timeout24h > 0 || runtimeQuarantine.active24h >= 5 ? 'critical' : 'warning',
+          runtimeQuarantine.timeout24h > 0 || runtimeQuarantine.active24h >= 5
+            ? 'critical'
+            : 'warning',
         href: '/app/runtime/quarantine',
       })
     } else if (runtimeResolutionSupported && runtimeQuarantine.resolved24h > 0) {
       alerts.push({
         title: `${runtimeQuarantine.resolved24h} runtime quarantine sudah auto-resolved`,
-        detail: 'Recheck runtime berhasil menormalkan proxy yang sempat di-quarantine dalam 24 jam terakhir.',
+        detail:
+          'Recheck runtime berhasil menormalkan proxy yang sempat di-quarantine dalam 24 jam terakhir.',
         tone: 'info',
         href: '/app/runtime/quarantine?resolution=resolved',
       })
@@ -481,6 +650,17 @@ export default class DashboardController {
           'Periksa health-check logs untuk melihat run auto recheck yang gagal publish atau gagal validasi runtime quarantine.',
         tone: 'warning',
         href: '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck',
+      })
+    }
+    if (tunnelDiagnostics.failedConnect24h > 0 || tunnelDiagnostics.upstreamIssues24h > 0) {
+      alerts.push({
+        title: `${tunnelDiagnostics.failedConnect24h + tunnelDiagnostics.upstreamIssues24h} tunnel issue terdeteksi`,
+        detail: `${tunnelDiagnostics.failedConnect24h} upstream connect failed · ${tunnelDiagnostics.upstreamIssues24h} upstream stream issue · ${tunnelDiagnostics.clientIssues24h} client-side issue`,
+        tone:
+          tunnelDiagnostics.failedConnect24h > 0 || tunnelDiagnostics.upstreamIssues24h >= 5
+            ? 'warning'
+            : 'info',
+        href: '/app/analytics?trafficType=tunnel&tunnelPhase=issues',
       })
     }
 
@@ -523,6 +703,7 @@ export default class DashboardController {
         topTargetRequests: Number(usageTopTargetRow?.request_count ?? 0),
         topPoolName: usageTopPoolRow?.proxy_list_name ?? null,
         topPoolRequests: Number(usageTopPoolRow?.request_count ?? 0),
+        tunnel: tunnelDiagnostics,
       },
       pools,
       recentScraperRuns: await scraperPipeline.listRecentRuns(team.id, 5, selectedPool?.id ?? null),
@@ -536,17 +717,14 @@ export default class DashboardController {
     const requestedPerPage = Number(request.input('perPage', 10))
     const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
     const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
-    const status =
-      qs.status === 'timeout' || qs.status === 'unhealthy' ? String(qs.status) : null
+    const status = qs.status === 'timeout' || qs.status === 'unhealthy' ? String(qs.status) : null
     const resolution =
       qs.resolution === 'resolved' || qs.resolution === 'all' ? String(qs.resolution) : 'active'
     const search = qs.search ? String(qs.search).trim() : null
     const requestedListId = qs.listId ? Number(qs.listId) : null
     const requestedProxyEntryId = qs.proxyEntryId ? Number(qs.proxyEntryId) : null
 
-    const allProxyLists = await ProxyList.query()
-      .where('team_id', team.id)
-      .orderBy('name', 'asc')
+    const allProxyLists = await ProxyList.query().where('team_id', team.id).orderBy('name', 'asc')
 
     const runtimeResolutionSupported = await this.hasRuntimeResolutionColumns()
 
@@ -754,11 +932,11 @@ export default class DashboardController {
         ? 'Auto health check'
         : trigger === 'runtime_auto_recheck'
           ? 'Runtime auto recheck'
-        : trigger === 'runtime_quarantine_recheck'
-          ? 'Runtime quarantine recheck'
-        : trigger === 'manual_recheck'
-          ? 'Proxy list recheck'
-          : 'Manual health check'
+          : trigger === 'runtime_quarantine_recheck'
+            ? 'Runtime quarantine recheck'
+            : trigger === 'manual_recheck'
+              ? 'Proxy list recheck'
+              : 'Manual health check'
     const detail = [
       listName,
       run.mode.toUpperCase(),
@@ -785,9 +963,9 @@ export default class DashboardController {
           ? '/app/tools/logs'
           : trigger === 'runtime_auto_recheck'
             ? '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck'
-          : trigger === 'runtime_quarantine_recheck'
-            ? '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_quarantine_recheck'
-            : '/app/tools/logs?sourceType=proxy_list_bulk',
+            : trigger === 'runtime_quarantine_recheck'
+              ? '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_quarantine_recheck'
+              : '/app/tools/logs?sourceType=proxy_list_bulk',
       startedAt: run.startedAt?.toISO() ?? null,
       finishedAt: run.finishedAt?.toISO() ?? null,
       updatedAt: run.updatedAt?.toISO() ?? null,
@@ -798,7 +976,11 @@ export default class DashboardController {
   private serializeScraperTask(run: ScraperRun) {
     const meta = ((run.meta ?? {}) as Record<string, unknown>) || {}
     const progressCurrent =
-      typeof meta.progressCurrent === 'number' ? meta.progressCurrent : run.status === 'success' ? 3 : 1
+      typeof meta.progressCurrent === 'number'
+        ? meta.progressCurrent
+        : run.status === 'success'
+          ? 3
+          : 1
     const progressTotal = typeof meta.progressTotal === 'number' ? meta.progressTotal : 3
     const stageLabel =
       typeof meta.stageLabel === 'string'
@@ -812,7 +994,9 @@ export default class DashboardController {
       kind: 'scraper' as const,
       status: run.status,
       title: `Scraper ${run.sourceName}`,
-      detail: [run.triggerType, run.checkMode.toUpperCase(), run.targetListName].filter(Boolean).join(' | '),
+      detail: [run.triggerType, run.checkMode.toUpperCase(), run.targetListName]
+        .filter(Boolean)
+        .join(' | '),
       progressLabel:
         run.status === 'running'
           ? stageLabel
@@ -877,6 +1061,40 @@ export default class DashboardController {
     return `LOWER(COALESCE(health_results.error_message, '')) LIKE '%timeout%' OR LOWER(COALESCE(health_results.error_message, '')) LIKE '%deadline%'`
   }
 
+  private tunnelIssuePhase(success: boolean, errorMessage: string | null) {
+    const message = String(errorMessage ?? '').toLowerCase()
+    if (!success) return 'upstream_connect_failed' as const
+    if (message.includes('upstream stream error')) return 'tunnel_upstream_issue' as const
+    if (message.includes('client stream error')) return 'tunnel_client_issue' as const
+    if (message.includes('no payload')) return 'tunnel_no_payload' as const
+    return 'tunnel_established' as const
+  }
+
+  private tunnelPhaseLabel(phase: string) {
+    if (phase === 'upstream_connect_failed') return 'Upstream connect failed'
+    if (phase === 'tunnel_upstream_issue') return 'Tunnel upstream issue'
+    if (phase === 'tunnel_client_issue') return 'Tunnel client issue'
+    if (phase === 'tunnel_no_payload') return 'Tunnel no payload'
+    return 'Tunnel established'
+  }
+
+  private tunnelTargetLabel(row: {
+    target_scheme?: string | null
+    target_host?: string | null
+    target_port?: number | string | null
+  }) {
+    const host = row.target_host ? String(row.target_host) : 'unknown-target'
+    const port = row.target_port ? `:${row.target_port}` : ''
+    const scheme = row.target_scheme ? `${row.target_scheme}://` : ''
+    return `${scheme}${host}${port}`
+  }
+
+  private tunnelAnalyticsHref(phase: string, listId: number | null) {
+    const params = new URLSearchParams({ trafficType: 'tunnel', tunnelPhase: phase })
+    if (listId) params.set('listId', String(listId))
+    return `/app/analytics?${params.toString()}`
+  }
+
   private serializeRuntimeQuarantineRow(row: any) {
     return {
       id: Number(row.id),
@@ -889,13 +1107,14 @@ export default class DashboardController {
       status: this.runtimeFailureStatus(row.error_message, row.proxy_status),
       resolution: row.resolved_at ? ('resolved' as const) : ('active' as const),
       checkedAt:
-        typeof row.checked_at === 'string' ? row.checked_at : new Date(row.checked_at).toISOString(),
-      resolvedAt:
-        !row.resolved_at
-          ? null
-          : typeof row.resolved_at === 'string'
-            ? row.resolved_at
-            : new Date(row.resolved_at).toISOString(),
+        typeof row.checked_at === 'string'
+          ? row.checked_at
+          : new Date(row.checked_at).toISOString(),
+      resolvedAt: !row.resolved_at
+        ? null
+        : typeof row.resolved_at === 'string'
+          ? row.resolved_at
+          : new Date(row.resolved_at).toISOString(),
       resolvedByRunId: row.resolved_by_run_id ? Number(row.resolved_by_run_id) : null,
       errorMessage:
         typeof row.error_message === 'string'

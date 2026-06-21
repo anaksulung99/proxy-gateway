@@ -38,5 +38,6 @@ declare module '@adonisjs/inertia/types' {
     'teams/index': ExtractProps<(typeof import('../../inertia/pages/teams/index.vue'))['default']>
     'tools/index': ExtractProps<(typeof import('../../inertia/pages/tools/index.vue'))['default']>
     'tools/show': ExtractProps<(typeof import('../../inertia/pages/tools/show.vue'))['default']>
+    'docs/external_proxy_testing': ExtractProps<(typeof import('../../inertia/pages/docs/external_proxy_testing.vue'))['default']>
   }
 }

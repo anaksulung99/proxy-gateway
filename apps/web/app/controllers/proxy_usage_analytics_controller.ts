@@ -7,10 +7,21 @@ import { deleteProxyListValidator } from '#validators/proxy_list'
 const ALLOWED_HOURS = [24, 168, 720] as const
 type TrendUnit = 'hour' | 'day'
 type AnalyticsStatus = 'all' | 'success' | 'failed'
+type AnalyticsTrafficType = 'all' | 'direct' | 'tunnel'
+type AnalyticsTunnelPhase =
+  | 'all'
+  | 'issues'
+  | 'upstream_connect_failed'
+  | 'tunnel_upstream_issue'
+  | 'tunnel_client_issue'
+  | 'tunnel_no_payload'
+  | 'tunnel_established'
 type AnalyticsFilters = {
   hours: number
   listId: number | null
   status: AnalyticsStatus
+  trafficType: AnalyticsTrafficType
+  tunnelPhase: AnalyticsTunnelPhase
   since: DateTime
 }
 type TrendPoint = {
@@ -48,11 +59,27 @@ function parseFilters(qs: Record<string, unknown>): AnalyticsFilters {
   const listId = qs.listId ? Number(qs.listId) : null
   const status: AnalyticsStatus =
     qs.status === 'failed' || qs.status === 'success' ? qs.status : 'all'
+  const trafficType: AnalyticsTrafficType =
+    qs.trafficType === 'direct' || qs.trafficType === 'tunnel' ? qs.trafficType : 'all'
+  const tunnelPhaseOptions: AnalyticsTunnelPhase[] = [
+    'all',
+    'issues',
+    'upstream_connect_failed',
+    'tunnel_upstream_issue',
+    'tunnel_client_issue',
+    'tunnel_no_payload',
+    'tunnel_established',
+  ]
+  const tunnelPhase = tunnelPhaseOptions.includes(qs.tunnelPhase as AnalyticsTunnelPhase)
+    ? (qs.tunnelPhase as AnalyticsTunnelPhase)
+    : 'all'
 
   return {
     hours,
     listId,
     status,
+    trafficType,
+    tunnelPhase,
     since: DateTime.now().minus({ hours }),
   }
 }
@@ -65,6 +92,9 @@ function applyUsageFilters(query: any, teamId: number, filters: AnalyticsFilters
   if (filters.listId) query.where('proxy_usage_logs.proxy_list_id', filters.listId)
   if (filters.status === 'success') query.where('proxy_usage_logs.success', true)
   if (filters.status === 'failed') query.where('proxy_usage_logs.success', false)
+  if (filters.trafficType === 'tunnel') query.where('proxy_usage_logs.is_tunnel', true)
+  if (filters.trafficType === 'direct') query.where('proxy_usage_logs.is_tunnel', false)
+  applyTunnelPhaseFilter(query, filters.tunnelPhase)
   return query
 }
 
@@ -107,6 +137,88 @@ function csvEscape(value: unknown) {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
+function resolveTunnelPhase(row: any) {
+  if (!row.is_tunnel) return 'request'
+  if (!row.success) return 'upstream_connect_failed'
+
+  const message = typeof row.error_message === 'string' ? row.error_message.toLowerCase() : ''
+  if (message.includes('upstream stream error')) return 'tunnel_upstream_issue'
+  if (message.includes('client stream error')) return 'tunnel_client_issue'
+  if (message.includes('no payload')) return 'tunnel_no_payload'
+  return 'tunnel_established'
+}
+
+function tunnelPhaseLabel(phase: string) {
+  if (phase === 'upstream_connect_failed') return 'Upstream connect failed'
+  if (phase === 'tunnel_upstream_issue') return 'Tunnel upstream issue'
+  if (phase === 'tunnel_client_issue') return 'Tunnel client issue'
+  if (phase === 'tunnel_no_payload') return 'Tunnel no payload'
+  if (phase === 'tunnel_established') return 'Tunnel established'
+  return 'Direct request'
+}
+
+function applyTunnelPhaseFilter(query: any, phase: AnalyticsTunnelPhase) {
+  if (phase === 'all') return query
+
+  if (phase === 'issues') {
+    return query.where((builder: any) => {
+      builder
+        .where((issueQuery: any) => {
+          issueQuery.where('proxy_usage_logs.is_tunnel', true).where('proxy_usage_logs.success', false)
+        })
+        .orWhere((issueQuery: any) => {
+          issueQuery
+            .where('proxy_usage_logs.is_tunnel', true)
+            .where('proxy_usage_logs.success', true)
+            .where((textQuery: any) => {
+              textQuery
+                .whereILike('proxy_usage_logs.error_message', '%upstream stream error%')
+                .orWhereILike('proxy_usage_logs.error_message', '%client stream error%')
+                .orWhereILike('proxy_usage_logs.error_message', '%no payload%')
+            })
+        })
+    })
+  }
+
+  if (phase === 'upstream_connect_failed') {
+    return query.where('proxy_usage_logs.is_tunnel', true).where('proxy_usage_logs.success', false)
+  }
+
+  if (phase === 'tunnel_established') {
+    return query
+      .where('proxy_usage_logs.is_tunnel', true)
+      .where('proxy_usage_logs.success', true)
+      .where((builder: any) => {
+        builder
+          .whereNull('proxy_usage_logs.error_message')
+          .orWhere('proxy_usage_logs.error_message', 'Tunnel established')
+      })
+  }
+
+  if (phase === 'tunnel_upstream_issue') {
+    return query
+      .where('proxy_usage_logs.is_tunnel', true)
+      .where('proxy_usage_logs.success', true)
+      .whereILike('proxy_usage_logs.error_message', '%upstream stream error%')
+  }
+
+  if (phase === 'tunnel_client_issue') {
+    return query
+      .where('proxy_usage_logs.is_tunnel', true)
+      .where('proxy_usage_logs.success', true)
+      .whereILike('proxy_usage_logs.error_message', '%client stream error%')
+  }
+
+  if (phase === 'tunnel_no_payload') {
+    return query
+      .where('proxy_usage_logs.is_tunnel', true)
+      .where('proxy_usage_logs.success', true)
+      .whereILike('proxy_usage_logs.error_message', '%no payload%')
+  }
+
+  return query
+}
+
 export default class ProxyUsageAnalyticsController {
   async index({ inertia, request, team }: HttpContext) {
     const qs = request.qs()
@@ -115,11 +227,19 @@ export default class ProxyUsageAnalyticsController {
     const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
     const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
 
-    const { hours, listId, status, since } = parseFilters(qs)
+    const { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since } =
+      parseFilters(qs)
     const trendUnit: TrendUnit = hours <= 24 ? 'hour' : 'day'
     const trendStart = since.startOf(trendUnit)
     const trendEnd = DateTime.now().startOf(trendUnit)
-    const logsBaseQuery = buildLogsBaseQuery(team.id, { hours, listId, status, since })
+    const logsBaseQuery = buildLogsBaseQuery(team.id, {
+      hours,
+      listId,
+      status,
+      trafficType,
+      tunnelPhase: tunnelPhaseFilter,
+      since,
+    })
     const logCountRow = await logsBaseQuery
       .clone()
       .clearSelect()
@@ -143,7 +263,7 @@ export default class ProxyUsageAnalyticsController {
             .avg('duration_ms as avg_duration_ms')
             .sum('response_bytes as total_response_bytes'),
           team.id,
-          { hours, listId, status, since }
+          { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since }
         ),
         applyUsageFilters(
           db
@@ -156,7 +276,7 @@ export default class ProxyUsageAnalyticsController {
             .orderBy('request_count', 'desc')
             .limit(8),
           team.id,
-          { hours, listId, status, since }
+          { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since }
         ),
         applyUsageFilters(
           db
@@ -170,7 +290,7 @@ export default class ProxyUsageAnalyticsController {
             .orderBy('request_count', 'desc')
             .limit(8),
           team.id,
-          { hours, listId, status, since }
+          { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since }
         ),
         applyUsageFilters(
           db
@@ -180,7 +300,7 @@ export default class ProxyUsageAnalyticsController {
             .groupBy('request_method')
             .orderBy('request_count', 'desc'),
           team.id,
-          { hours, listId, status, since }
+          { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since }
         ),
         applyUsageFilters(
           db
@@ -196,7 +316,7 @@ export default class ProxyUsageAnalyticsController {
             .groupByRaw(`date_trunc('${trendUnit}', proxy_usage_logs.requested_at)`)
             .orderBy('bucket_start', 'asc'),
           team.id,
-          { hours, listId, status, since }
+          { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter, since }
         ),
         logsBaseQuery
           .clone()
@@ -245,7 +365,7 @@ export default class ProxyUsageAnalyticsController {
     return inertia.render(
       'analytics/index' as never,
       {
-        filters: { hours, listId, status },
+        filters: { hours, listId, status, trafficType, tunnelPhase: tunnelPhaseFilter },
         lists: lists.map((list) => ({ id: list.id, name: list.name })),
         trend: {
           unit: trendUnit,
@@ -281,28 +401,33 @@ export default class ProxyUsageAnalyticsController {
           requestCount: Number(row.request_count ?? 0),
         })),
         logs: {
-          data: logRows.map((row: any) => ({
-            id: row.id,
-            requestMethod: row.request_method,
-            targetHost: row.target_host,
-            targetPort: row.target_port,
-            targetScheme: row.target_scheme,
-            isTunnel: row.is_tunnel,
-            success: row.success,
-            statusCode: row.status_code,
-            attemptCount: row.attempt_count,
-            durationMs: row.duration_ms,
-            responseBytes: Number(row.response_bytes ?? 0),
-            sessionKey: row.session_key,
-            countryOverride: row.country_override,
-            selectedProtocol: row.selected_protocol,
-            selectedCountry: row.selected_country,
-            selectedAsn: row.selected_asn,
-            errorMessage: row.error_message,
-            requestedAt: row.requested_at,
-            proxyListId: row.proxy_list_id,
-            proxyListName: row.proxy_list_name,
-          })),
+          data: logRows.map((row: any) => {
+            const phase = resolveTunnelPhase(row)
+            return {
+              id: row.id,
+              requestMethod: row.request_method,
+              targetHost: row.target_host,
+              targetPort: row.target_port,
+              targetScheme: row.target_scheme,
+              isTunnel: row.is_tunnel,
+              success: row.success,
+              statusCode: row.status_code,
+              attemptCount: row.attempt_count,
+              durationMs: row.duration_ms,
+              responseBytes: Number(row.response_bytes ?? 0),
+              sessionKey: row.session_key,
+              countryOverride: row.country_override,
+              selectedProtocol: row.selected_protocol,
+              selectedCountry: row.selected_country,
+              selectedAsn: row.selected_asn,
+              errorMessage: row.error_message,
+              requestedAt: row.requested_at,
+              proxyListId: row.proxy_list_id,
+              proxyListName: row.proxy_list_name,
+              tunnelPhase: phase,
+              tunnelPhaseLabel: tunnelPhaseLabel(phase),
+            }
+          }),
           meta: {
             total: logTotal,
             currentPage,

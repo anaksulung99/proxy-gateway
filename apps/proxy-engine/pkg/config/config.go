@@ -2,7 +2,8 @@ package config
 
 import (
 	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
+	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -48,61 +49,84 @@ type RabbitMQConfig struct {
 
 func Load() *Config {
 	_ = godotenv.Load()
-	viper.AutomaticEnv()
-	viper.SetDefault("GO_ENV", "development")
-	viper.SetDefault("PORT", "8001")
-	viper.SetDefault("GATEWAY_PORT", "8000")
-	viper.SetDefault("SOCKS_PORT", "1080")
-	viper.SetDefault("GATEWAY_SECRET", "changeme")
-	viper.SetDefault("WORKERS", 50)
-	viper.SetDefault("RUNTIME_FAILURE_THRESHOLD", 2)
-	viper.SetDefault("RUNTIME_FAILURE_WINDOW_SEC", 300)
-	viper.SetDefault("RUNTIME_AUTO_RECHECK_ENABLED", true)
-	viper.SetDefault("RUNTIME_AUTO_RECHECK_DELAY_SEC", 90)
-	viper.SetDefault("RUNTIME_AUTO_RECHECK_MAX_ATTEMPTS", 2)
-	viper.SetDefault("RUNTIME_AUTO_RECHECK_RETRY_DELAY_SEC", 180)
-	viper.SetDefault("REDIS_HOST", "127.0.0.1")
-	viper.SetDefault("REDIS_PORT", "6379")
-	viper.SetDefault("DB_HOST", "127.0.0.1")
-	viper.SetDefault("DB_PORT", "5432")
-	viper.SetDefault("RABBITMQ_HOST", "127.0.0.1")
-	viper.SetDefault("RABBITMQ_PORT", "5672")
-	viper.SetDefault("RABBITMQ_USER", "guest")
-	viper.SetDefault("RABBITMQ_PASSWORD", "guest")
-	viper.SetDefault("RABBITMQ_VHOST", "/proxy")
+	return loadFromLookup(os.LookupEnv)
+}
 
+func LoadFromMap(values map[string]string) *Config {
+	return loadFromLookup(func(key string) (string, bool) {
+		if value, ok := values[key]; ok {
+			return value, true
+		}
+		return os.LookupEnv(key)
+	})
+}
+
+func loadFromLookup(lookup func(string) (string, bool)) *Config {
 	return &Config{
-		Env:                        viper.GetString("GO_ENV"),
-		Port:                       viper.GetString("PORT"),
-		GatewayPort:                viper.GetString("GATEWAY_PORT"),
-		SocksPort:                  viper.GetString("SOCKS_PORT"),
-		GatewaySecret:              viper.GetString("GATEWAY_SECRET"),
-		Workers:                    viper.GetInt("WORKERS"),
-		InternalSecret:             viper.GetString("INTERNAL_API_SECRET"),
-		RuntimeFailureThreshold:    viper.GetInt("RUNTIME_FAILURE_THRESHOLD"),
-		RuntimeFailureWindowSec:    viper.GetInt("RUNTIME_FAILURE_WINDOW_SEC"),
-		RuntimeAutoRecheckEnabled:  viper.GetBool("RUNTIME_AUTO_RECHECK_ENABLED"),
-		RuntimeAutoRecheckDelaySec: viper.GetInt("RUNTIME_AUTO_RECHECK_DELAY_SEC"),
-		RuntimeAutoRecheckMax:      viper.GetInt("RUNTIME_AUTO_RECHECK_MAX_ATTEMPTS"),
-		RuntimeAutoRetryDelaySec:   viper.GetInt("RUNTIME_AUTO_RECHECK_RETRY_DELAY_SEC"),
+		Env:                        getString(lookup, "GO_ENV", "development"),
+		Port:                       getString(lookup, "PORT", "8001"),
+		GatewayPort:                getString(lookup, "GATEWAY_PORT", "8000"),
+		SocksPort:                  getString(lookup, "SOCKS_PORT", "1080"),
+		GatewaySecret:              getString(lookup, "GATEWAY_SECRET", "changeme"),
+		Workers:                    getInt(lookup, "WORKERS", 50),
+		InternalSecret:             getString(lookup, "INTERNAL_API_SECRET", ""),
+		RuntimeFailureThreshold:    getInt(lookup, "RUNTIME_FAILURE_THRESHOLD", 2),
+		RuntimeFailureWindowSec:    getInt(lookup, "RUNTIME_FAILURE_WINDOW_SEC", 300),
+		RuntimeAutoRecheckEnabled:  getBool(lookup, "RUNTIME_AUTO_RECHECK_ENABLED", true),
+		RuntimeAutoRecheckDelaySec: getInt(lookup, "RUNTIME_AUTO_RECHECK_DELAY_SEC", 90),
+		RuntimeAutoRecheckMax:      getInt(lookup, "RUNTIME_AUTO_RECHECK_MAX_ATTEMPTS", 2),
+		RuntimeAutoRetryDelaySec:   getInt(lookup, "RUNTIME_AUTO_RECHECK_RETRY_DELAY_SEC", 180),
 		Redis: RedisConfig{
-			Host:     viper.GetString("REDIS_HOST"),
-			Port:     viper.GetString("REDIS_PORT"),
-			Password: viper.GetString("REDIS_PASSWORD"),
+			Host:     getString(lookup, "REDIS_HOST", "127.0.0.1"),
+			Port:     getString(lookup, "REDIS_PORT", "6379"),
+			Password: getString(lookup, "REDIS_PASSWORD", ""),
 		},
 		Postgres: PostgresConfig{
-			Host:     viper.GetString("DB_HOST"),
-			Port:     viper.GetString("DB_PORT"),
-			User:     viper.GetString("DB_USER"),
-			Password: viper.GetString("DB_PASSWORD"),
-			Database: viper.GetString("DB_DATABASE"),
+			Host:     getString(lookup, "DB_HOST", "127.0.0.1"),
+			Port:     getString(lookup, "DB_PORT", "5432"),
+			User:     getString(lookup, "DB_USER", ""),
+			Password: getString(lookup, "DB_PASSWORD", ""),
+			Database: getString(lookup, "DB_DATABASE", ""),
 		},
 		RabbitMQ: RabbitMQConfig{
-			Host:     viper.GetString("RABBITMQ_HOST"),
-			Port:     viper.GetString("RABBITMQ_PORT"),
-			User:     viper.GetString("RABBITMQ_USER"),
-			Password: viper.GetString("RABBITMQ_PASSWORD"),
-			VHost:    viper.GetString("RABBITMQ_VHOST"),
+			Host:     getString(lookup, "RABBITMQ_HOST", "127.0.0.1"),
+			Port:     getString(lookup, "RABBITMQ_PORT", "5672"),
+			User:     getString(lookup, "RABBITMQ_USER", "guest"),
+			Password: getString(lookup, "RABBITMQ_PASSWORD", "guest"),
+			VHost:    getString(lookup, "RABBITMQ_VHOST", "/proxy"),
 		},
 	}
+}
+
+func getString(lookup func(string) (string, bool), key string, fallback string) string {
+	if value, ok := lookup(key); ok && value != "" {
+		return value
+	}
+	return fallback
+}
+
+func getInt(lookup func(string) (string, bool), key string, fallback int) int {
+	value, ok := lookup(key)
+	if !ok || value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getBool(lookup func(string) (string, bool), key string, fallback bool) bool {
+	value, ok := lookup(key)
+	if !ok || value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

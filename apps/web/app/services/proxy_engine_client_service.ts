@@ -12,6 +12,42 @@ export interface ProxyEngineRuntimeStatus {
   cacheSize: number
   usageDropped: number
   uptimeSeconds: number
+  metrics: {
+    requests: {
+      total: number
+      success: number
+      failed: number
+      tunnelTotal: number
+      directTotal: number
+      responseBytes: number
+      avgDurationMs: number
+      successRate: number
+    }
+    tunnel: {
+      established: number
+      connectFailed: number
+      upstreamIssues: number
+      clientIssues: number
+      noPayload: number
+    }
+    runtimeFailures: {
+      observedTotal: number
+      quarantinedTotal: number
+      timeoutObserved: number
+      timeoutQuarantined: number
+      unhealthyObserved: number
+      unhealthyQuarantined: number
+    }
+    config: {
+      reloadsTotal: number
+      runtimeFailureThreshold: number
+      runtimeFailureWindowSec: number
+      runtimeAutoRecheckEnabled: boolean
+      runtimeAutoRecheckDelaySec: number
+      runtimeAutoRecheckMaxAttempts: number
+      runtimeAutoRetryDelaySec: number
+    }
+  }
   timestamp: string
 }
 

@@ -283,6 +283,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboard_controller').default['runtimeQuarantine']>>>
     }
   }
+  'docs.externalProxyTesting': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/docs/external-proxy-testing'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/docs_controller').default['externalProxyTesting']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/docs_controller').default['externalProxyTesting']>>>
+    }
+  }
   'proxy-lists.index': {
     methods: ["GET","HEAD"]
     pattern: '/app/proxy-lists'

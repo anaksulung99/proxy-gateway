@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/proxy-system/proxy-engine/internal/apikey"
+	internalconfig "github.com/proxy-system/proxy-engine/internal/config"
 	"github.com/proxy-system/proxy-engine/internal/gateway"
+	enginemetrics "github.com/proxy-system/proxy-engine/internal/metrics"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/quota"
 	"github.com/proxy-system/proxy-engine/internal/runtimehealth"
@@ -51,6 +53,7 @@ func main() {
 	repo := pool.NewRepository(pg, 10*time.Second)
 	sel := session.NewSelector(rdb)
 	usageSink := usage.NewSink(pg, log)
+	metrics := enginemetrics.Default(usageSink)
 	keyValidator := apikey.New(pg)
 	quotaTracker := quota.New(rdb)
 	runtimeTracker := runtimehealth.New(
@@ -58,6 +61,7 @@ func main() {
 		rdb,
 		repo,
 		rmq,
+		metrics,
 		cfg.RuntimeFailureThreshold,
 		time.Duration(cfg.RuntimeFailureWindowSec)*time.Second,
 		cfg.RuntimeAutoRecheckEnabled && rmq != nil,
@@ -66,7 +70,8 @@ func main() {
 		time.Duration(cfg.RuntimeAutoRetryDelaySec)*time.Second,
 		log,
 	)
-	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, runtimeTracker, log)
+	metrics.ApplyRuntimeConfig(cfg, cfg.RuntimeAutoRecheckEnabled && rmq != nil)
+	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, runtimeTracker, metrics, log)
 
 	// HTTP forward-proxy listener
 	go func() {
@@ -84,12 +89,47 @@ func main() {
 	}()
 
 	// Admin/health (Fiber)
-	srv := server.New(cfg, log, repo, usageSink)
+	srv := server.New(cfg, log, repo, usageSink, metrics)
 	go func() {
 		if err := srv.Start(); err != nil {
 			log.Fatal().Err(err).Msg("Admin server failed")
 		}
 	}()
+
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	defer watchCancel()
+
+	watcher := internalconfig.NewWatcher(log, 5*time.Second)
+	if watcher.Enabled() {
+		go watcher.Start(watchCtx, func(next *config.Config) {
+			gw.UpdateSecret(next.GatewaySecret)
+			srv.UpdateInternalSecret(next.InternalSecret)
+			runtimeTracker.UpdateConfig(runtimehealth.RuntimeConfig{
+				Threshold:        next.RuntimeFailureThreshold,
+				Window:           time.Duration(next.RuntimeFailureWindowSec) * time.Second,
+				AutoRecheck:      next.RuntimeAutoRecheckEnabled && rmq != nil,
+				AutoRecheckDelay: time.Duration(next.RuntimeAutoRecheckDelaySec) * time.Second,
+				AutoRecheckMax:   next.RuntimeAutoRecheckMax,
+				AutoRetryDelay:   time.Duration(next.RuntimeAutoRetryDelaySec) * time.Second,
+			})
+			metrics.ApplyRuntimeConfig(next, next.RuntimeAutoRecheckEnabled && rmq != nil)
+			metrics.ObserveConfigReload("env_watcher")
+
+			log.Info().
+				Bool("gateway_secret_updated", next.GatewaySecret != "").
+				Bool("internal_secret_updated", next.InternalSecret != "").
+				Int("runtime_failure_threshold", next.RuntimeFailureThreshold).
+				Int("runtime_failure_window_sec", next.RuntimeFailureWindowSec).
+				Bool("runtime_auto_recheck_enabled", next.RuntimeAutoRecheckEnabled && rmq != nil).
+				Int("runtime_auto_recheck_delay_sec", next.RuntimeAutoRecheckDelaySec).
+				Int("runtime_auto_recheck_max_attempts", next.RuntimeAutoRecheckMax).
+				Int("runtime_auto_retry_delay_sec", next.RuntimeAutoRetryDelaySec).
+				Str("note", "listener port changes still require restart").
+				Msg("runtime config reloaded from watcher")
+		})
+	} else {
+		log.Info().Msg("config watcher skipped because no .env file was found")
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

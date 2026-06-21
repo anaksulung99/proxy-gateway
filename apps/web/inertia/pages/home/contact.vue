@@ -121,9 +121,9 @@ const submitForm = async () => {
                       >{{ t('contact.info_email') }}</span
                     >
                     <a
-                      href="mailto:support@proxify.com"
+                      href="mailto:support@smartboostlabs.com"
                       class="text-sm font-medium text-foreground hover:text-sky-600 transition-colors"
-                      >support@proxify.com</a
+                      >support@smartboostlabs.com</a
                     >
                   </div>
                 </div>

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	enginemetrics "github.com/proxy-system/proxy-engine/internal/metrics"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/pkg/rabbitmq"
 	"github.com/redis/go-redis/v9"
@@ -19,7 +21,27 @@ type Tracker struct {
 	rdb              *redis.Client
 	repo             *pool.Repository
 	rmq              *rabbitmq.Client
+	metrics          *enginemetrics.Metrics
 	log              zerolog.Logger
+	threshold        int
+	window           time.Duration
+	autoRecheck      bool
+	autoRecheckDelay time.Duration
+	autoRecheckMax   int
+	autoRetryDelay   time.Duration
+	mu               sync.RWMutex
+}
+
+type RuntimeConfig struct {
+	Threshold        int
+	Window           time.Duration
+	AutoRecheck      bool
+	AutoRecheckDelay time.Duration
+	AutoRecheckMax   int
+	AutoRetryDelay   time.Duration
+}
+
+type runtimeSnapshot struct {
 	threshold        int
 	window           time.Duration
 	autoRecheck      bool
@@ -44,6 +66,7 @@ func New(
 	rdb *redis.Client,
 	repo *pool.Repository,
 	rmq *rabbitmq.Client,
+	metrics *enginemetrics.Metrics,
 	threshold int,
 	window time.Duration,
 	autoRecheck bool,
@@ -57,6 +80,7 @@ func New(
 		rdb:              rdb,
 		repo:             repo,
 		rmq:              rmq,
+		metrics:          metrics,
 		log:              log,
 		threshold:        threshold,
 		window:           window,
@@ -68,7 +92,11 @@ func New(
 }
 
 func (t *Tracker) Enabled() bool {
-	return t != nil && t.db != nil && t.rdb != nil && t.repo != nil && t.threshold > 0 && t.window > 0
+	if t == nil || t.db == nil || t.rdb == nil || t.repo == nil {
+		return false
+	}
+	snapshot := t.snapshot()
+	return snapshot.threshold > 0 && snapshot.window > 0
 }
 
 func (t *Tracker) ObserveSuccess(ctx context.Context, upstreamID int64) {
@@ -90,10 +118,13 @@ func (t *Tracker) ObserveFailure(ctx context.Context, listID int64, upstream poo
 		return
 	}
 	if count == 1 {
-		_ = t.rdb.Expire(ctx, key, t.window).Err()
+		_ = t.rdb.Expire(ctx, key, t.windowDuration()).Err()
 	}
 
 	status := classify(err)
+	if t.metrics != nil {
+		t.metrics.ObserveRuntimeFailure(status, "observed")
+	}
 	var runtimeResultID int64
 	t.log.Warn().
 		Err(err).
@@ -103,7 +134,7 @@ func (t *Tracker) ObserveFailure(ctx context.Context, listID int64, upstream poo
 		Str("status", status).
 		Msg("runtime upstream failure observed")
 
-	if int(count) < t.threshold {
+	if int(count) < t.failureThreshold() {
 		return
 	}
 
@@ -146,6 +177,9 @@ func (t *Tracker) ObserveFailure(ctx context.Context, listID int64, upstream poo
 
 	_ = t.rdb.Del(ctx, key).Err()
 	t.repo.Invalidate(listID)
+	if t.metrics != nil {
+		t.metrics.ObserveRuntimeFailure(status, "quarantined")
+	}
 	t.log.Warn().
 		Int64("list", listID).
 		Int64("upstream_id", upstream.ID).
@@ -174,7 +208,8 @@ func (t *Tracker) autoRecheckKey(upstreamID int64) string {
 }
 
 func (t *Tracker) scheduleAutoRecheck(listID int64, upstream pool.Upstream, status string, runtimeResultID int64) {
-	if !t.autoRecheck || t.rmq == nil || listID <= 0 || upstream.ID <= 0 {
+	snapshot := t.snapshot()
+	if !snapshot.autoRecheck || t.rmq == nil || listID <= 0 || upstream.ID <= 0 {
 		return
 	}
 
@@ -216,10 +251,10 @@ func (t *Tracker) scheduleAutoRecheck(listID int64, upstream pool.Upstream, stat
 		Int64("run_id", runID).
 		Int("attempt", 1).
 		Int("max_attempts", t.autoRecheckMaxAttempts()).
-		Dur("delay", t.autoRecheckDelay).
+		Dur("delay", snapshot.autoRecheckDelay).
 		Msg("runtime auto recheck scheduled")
 
-	time.AfterFunc(t.autoRecheckDelay, func() {
+	time.AfterFunc(snapshot.autoRecheckDelay, func() {
 		publishCtx, publishCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer publishCancel()
 
@@ -318,7 +353,7 @@ func (t *Tracker) scheduleRetryAttempt(
 	attempt int,
 	previousRunID int64,
 ) {
-	if attempt > t.autoRecheckMaxAttempts() || t.autoRetryDelay <= 0 {
+	if attempt > t.autoRecheckMaxAttempts() || t.retryDelay() <= 0 {
 		return
 	}
 
@@ -326,10 +361,10 @@ func (t *Tracker) scheduleRetryAttempt(
 		Int64("upstream_id", upstream.ID).
 		Int64("previous_run_id", previousRunID).
 		Int("attempt", attempt).
-		Dur("delay", t.autoRetryDelay).
+		Dur("delay", t.retryDelay()).
 		Msg("runtime auto recheck retry scheduled")
 
-	time.AfterFunc(t.autoRetryDelay, func() {
+	time.AfterFunc(t.retryDelay(), func() {
 		shouldRetry, reason, err := t.shouldRetryAttempt(context.Background(), upstream.ID, previousRunID)
 		if err != nil {
 			t.log.Warn().
@@ -487,10 +522,11 @@ func (t *Tracker) markRunQueued(ctx context.Context, runID int64) error {
 }
 
 func (t *Tracker) autoRecheckHold() time.Duration {
-	hold := t.window
-	totalDelay := t.autoRecheckDelay
+	snapshot := t.snapshot()
+	hold := snapshot.window
+	totalDelay := snapshot.autoRecheckDelay
 	if t.autoRecheckMaxAttempts() > 1 {
-		totalDelay += time.Duration(t.autoRecheckMaxAttempts()-1) * t.autoRetryDelay
+		totalDelay += time.Duration(t.autoRecheckMaxAttempts()-1) * snapshot.autoRetryDelay
 	}
 	if totalDelay+time.Minute > hold {
 		hold = totalDelay + time.Minute
@@ -499,17 +535,18 @@ func (t *Tracker) autoRecheckHold() time.Duration {
 }
 
 func (t *Tracker) autoRecheckMaxAttempts() int {
-	if t.autoRecheckMax <= 1 {
+	snapshot := t.snapshot()
+	if snapshot.autoRecheckMax <= 1 {
 		return 1
 	}
-	return t.autoRecheckMax
+	return snapshot.autoRecheckMax
 }
 
 func (t *Tracker) delayForAttempt(attempt int) time.Duration {
 	if attempt <= 1 {
-		return t.autoRecheckDelay
+		return t.autoRecheckDelayDuration()
 	}
-	return t.autoRetryDelay
+	return t.retryDelay()
 }
 
 func (t *Tracker) retryKind(attempt int) string {
@@ -532,6 +569,46 @@ func (t *Tracker) markRunError(ctx context.Context, runID int64, message string)
 		runID, truncate(message, 2000), now,
 	)
 	return err
+}
+
+func (t *Tracker) UpdateConfig(cfg RuntimeConfig) {
+	t.mu.Lock()
+	t.threshold = cfg.Threshold
+	t.window = cfg.Window
+	t.autoRecheck = cfg.AutoRecheck
+	t.autoRecheckDelay = cfg.AutoRecheckDelay
+	t.autoRecheckMax = cfg.AutoRecheckMax
+	t.autoRetryDelay = cfg.AutoRetryDelay
+	t.mu.Unlock()
+}
+
+func (t *Tracker) snapshot() runtimeSnapshot {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return runtimeSnapshot{
+		threshold:        t.threshold,
+		window:           t.window,
+		autoRecheck:      t.autoRecheck,
+		autoRecheckDelay: t.autoRecheckDelay,
+		autoRecheckMax:   t.autoRecheckMax,
+		autoRetryDelay:   t.autoRetryDelay,
+	}
+}
+
+func (t *Tracker) failureThreshold() int {
+	return t.snapshot().threshold
+}
+
+func (t *Tracker) windowDuration() time.Duration {
+	return t.snapshot().window
+}
+
+func (t *Tracker) autoRecheckDelayDuration() time.Duration {
+	return t.snapshot().autoRecheckDelay
+}
+
+func (t *Tracker) retryDelay() time.Duration {
+	return t.snapshot().autoRetryDelay
 }
 
 func truncate(value string, max int) string {

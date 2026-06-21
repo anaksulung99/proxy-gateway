@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/proxy-system/proxy-engine/internal/usage"
@@ -45,17 +44,6 @@ func (s *Socks5Server) Close() error {
 		return nil
 	}
 	return s.listener.Close()
-}
-
-type countWriter struct {
-	w io.Writer
-	n int64
-}
-
-func (c *countWriter) Write(p []byte) (int, error) {
-	n, err := c.w.Write(p)
-	atomic.AddInt64(&c.n, int64(n))
-	return n, err
 }
 
 func (s *Socks5Server) handle(conn net.Conn) {
@@ -206,13 +194,12 @@ func (s *Socks5Server) handle(conn net.Conn) {
 		return
 	}
 
-	cw := &countWriter{w: conn}
-	done := make(chan struct{}, 2)
-	go func() { io.Copy(upConn, conn); done <- struct{}{} }()
-	go func() { io.Copy(cw, upConn); done <- struct{}{} }()
-	<-done
+	results := make(chan tunnelCopyResult, 2)
+	go copyTunnel(upConn, conn, "client_to_upstream", results)
+	go copyTunnel(conn, upConn, "upstream_to_client", results)
 
-	s.gw.quota.Add(dialCtx, chosen.teamID, auth.keyID, atomic.LoadInt64(&cw.n))
+	observation := observeTunnelLifecycle(results)
+	s.gw.quota.Add(dialCtx, chosen.teamID, auth.keyID, observation.responseBytes)
 	s.gw.recordUsage(usage.Event{
 		TeamID:           chosen.teamID,
 		ProxyListID:      chosen.listConfigID,
@@ -227,12 +214,13 @@ func (s *Socks5Server) handle(conn net.Conn) {
 		StatusCode:       200,
 		AttemptCount:     len(excluded) + 1,
 		DurationMs:       time.Since(startedAt).Milliseconds(),
-		ResponseBytes:    atomic.LoadInt64(&cw.n),
+		ResponseBytes:    observation.responseBytes,
 		SessionKey:       sessionID,
 		CountryOverride:  country,
 		SelectedProtocol: chosen.protocol,
 		SelectedCountry:  chosen.cc,
 		SelectedASN:      chosen.asn,
+		ErrorMessage:     observation.message,
 		RequestedAt:      startedAt.UTC(),
 	})
 }

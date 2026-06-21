@@ -12,10 +12,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/proxy-system/proxy-engine/internal/apikey"
 	"github.com/proxy-system/proxy-engine/internal/filter"
+	enginemetrics "github.com/proxy-system/proxy-engine/internal/metrics"
 	"github.com/proxy-system/proxy-engine/internal/pool"
 	"github.com/proxy-system/proxy-engine/internal/quota"
 	"github.com/proxy-system/proxy-engine/internal/runtimehealth"
@@ -38,12 +40,14 @@ type Gateway struct {
 	quota   *quota.Quota
 	usage   *usage.Sink
 	runtime *runtimehealth.Tracker
+	metrics *enginemetrics.Metrics
 	log     zerolog.Logger
 	srv     *http.Server
+	mu      sync.RWMutex
 }
 
-func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, q *quota.Quota, usageSink *usage.Sink, runtimeTracker *runtimehealth.Tracker, log zerolog.Logger) *Gateway {
-	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, quota: q, usage: usageSink, runtime: runtimeTracker, log: log}
+func New(repo *pool.Repository, sel *session.Selector, secret string, keys *apikey.Validator, q *quota.Quota, usageSink *usage.Sink, runtimeTracker *runtimehealth.Tracker, metrics *enginemetrics.Metrics, log zerolog.Logger) *Gateway {
+	return &Gateway{repo: repo, sel: sel, secret: secret, keys: keys, quota: q, usage: usageSink, runtime: runtimeTracker, metrics: metrics, log: log}
 }
 
 // quotaBlocked reports whether the caller has exhausted its team or key quota.
@@ -81,6 +85,18 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return g.srv.Shutdown(ctx)
+}
+
+func (g *Gateway) UpdateSecret(secret string) {
+	g.mu.Lock()
+	g.secret = secret
+	g.mu.Unlock()
+}
+
+func (g *Gateway) currentSecret() string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.secret
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -274,6 +290,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				SelectedProtocol: upstream.Protocol,
 				SelectedCountry:  upstream.CountryCode,
 				SelectedASN:      upstream.ASN,
+				ErrorMessage:     lastOutcome.Message,
 				RequestedAt:      startedAt.UTC(),
 			})
 			return
@@ -361,7 +378,7 @@ func (g *Gateway) authenticate(r *http.Request) (listID int64, sessionID, countr
 // routing username ("list-<id>[-session-<sid>][-country-<cc>]" or a bare id).
 // Shared by the HTTP and SOCKS5 frontends.
 func (g *Gateway) authorize(ctx context.Context, user, pass string) (listID int64, sessionID, country string, auth authIdentity, ok bool) {
-	if g.secret != "" && subtle.ConstantTimeCompare([]byte(pass), []byte(g.secret)) == 1 {
+	if secret := g.currentSecret(); secret != "" && subtle.ConstantTimeCompare([]byte(pass), []byte(secret)) == 1 {
 		auth.master = true
 	} else if g.keys != nil {
 		teamID, keyID, quota, valid := g.keys.Validate(ctx, pass)
@@ -486,6 +503,7 @@ func dialThroughUpstream(ctx context.Context, u pool.Upstream, target string) (n
 type upstreamResult struct {
 	StatusCode    int
 	ResponseBytes int64
+	Message       string
 }
 
 type responseRecorder struct {
@@ -532,11 +550,16 @@ func (g *Gateway) handleConnect(w http.ResponseWriter, r *http.Request, u pool.U
 		return upstreamResult{}, err
 	}
 
-	done := make(chan struct{}, 2)
-	go func() { io.Copy(upConn, clientConn); done <- struct{}{} }()
-	go func() { io.Copy(clientConn, upConn); done <- struct{}{} }()
-	<-done
-	return upstreamResult{StatusCode: http.StatusOK}, nil
+	results := make(chan tunnelCopyResult, 2)
+	go copyTunnel(upConn, clientConn, "client_to_upstream", results)
+	go copyTunnel(clientConn, upConn, "upstream_to_client", results)
+
+	observation := observeTunnelLifecycle(results)
+	return upstreamResult{
+		StatusCode:    http.StatusOK,
+		ResponseBytes: observation.responseBytes,
+		Message:       observation.message,
+	}, nil
 }
 
 func (g *Gateway) handleHTTP(w http.ResponseWriter, r *http.Request, u pool.Upstream) (upstreamResult, error) {
@@ -663,6 +686,9 @@ func splitHostPort(value string) (string, int) {
 }
 
 func (g *Gateway) recordUsage(event usage.Event) {
+	if g.metrics != nil {
+		g.metrics.ObserveUsage(event)
+	}
 	if g.usage == nil {
 		return
 	}

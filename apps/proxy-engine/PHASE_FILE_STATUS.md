@@ -24,6 +24,8 @@ Tujuannya agar tidak terjadi duplikasi logic saat development, dan agar cleanup 
 - `internal/quota/quota.go`
 - `internal/middleware/auth.go`
 - `internal/middleware/logger.go`
+- `internal/config/watcher.go`
+- `internal/metrics/metrics.go`
 
 ## Placeholder Selesai
 
@@ -51,8 +53,40 @@ File-file ini belum menjadi jalur runtime utama. Jangan ditandai selesai/hapus d
 | File | Status | Current Runtime Source | Catatan |
 | --- | --- | --- | --- |
 | `internal/config/loader.go` | `gap-core` | `pkg/config/config.go` | Runtime masih load config dari `pkg/config.Load()` |
-| `internal/config/watcher.go` | `gap-core` | belum ada watcher aktif | Belum ada wiring watcher config ke runtime |
-| `internal/metrics/metrics.go` | `gap-core` | `internal/server/router.go` + `promhttp.Handler()` | Endpoint `/metrics` aktif, tapi layer metrics internal belum jadi source of truth |
+
+## Config Watcher Aktif
+
+`internal/config/watcher.go` sekarang sudah terhubung ke `main.go` untuk hot-reload berbasis `.env` polling.
+
+Scope hot-reload saat ini:
+
+- `GATEWAY_SECRET`
+- `INTERNAL_API_SECRET`
+- `RUNTIME_FAILURE_THRESHOLD`
+- `RUNTIME_FAILURE_WINDOW_SEC`
+- `RUNTIME_AUTO_RECHECK_ENABLED`
+- `RUNTIME_AUTO_RECHECK_DELAY_SEC`
+- `RUNTIME_AUTO_RECHECK_MAX_ATTEMPTS`
+- `RUNTIME_AUTO_RECHECK_RETRY_DELAY_SEC`
+
+Belum hot-reload:
+
+- listener port (`PORT`, `GATEWAY_PORT`, `SOCKS_PORT`)
+- dependency connection target (`DB_*`, `REDIS_*`, `RABBITMQ_*`)
+
+## Metrics Aktif
+
+`internal/metrics/metrics.go` sekarang sudah menjadi layer metrics runtime untuk proxy-engine.
+
+Scope metrics saat ini:
+
+- inbound request total
+- request duration histogram
+- response bytes total
+- runtime failure observed/quarantined total
+- config reload total
+- current runtime policy gauge
+- dropped usage log gauge
 
 ## Aturan Aman Selama Phase Ini
 

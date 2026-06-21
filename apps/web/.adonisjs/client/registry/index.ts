@@ -144,6 +144,12 @@ const routes = {
     tokens: [{"old":"/app/runtime/quarantine","type":0,"val":"app","end":""},{"old":"/app/runtime/quarantine","type":0,"val":"runtime","end":""},{"old":"/app/runtime/quarantine","type":0,"val":"quarantine","end":""}],
     types: placeholder as Registry['dashboard.runtimeQuarantine']['types'],
   },
+  'docs.externalProxyTesting': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/docs/external-proxy-testing',
+    tokens: [{"old":"/app/docs/external-proxy-testing","type":0,"val":"app","end":""},{"old":"/app/docs/external-proxy-testing","type":0,"val":"docs","end":""},{"old":"/app/docs/external-proxy-testing","type":0,"val":"external-proxy-testing","end":""}],
+    types: placeholder as Registry['docs.externalProxyTesting']['types'],
+  },
   'proxy-lists.index': {
     methods: ["GET","HEAD"],
     pattern: '/app/proxy-lists',

@@ -27,6 +27,7 @@ export type ScannedRoutes = {
     'dashboard': { paramsTuple?: []; params?: {} }
     'dashboard.tasks': { paramsTuple?: []; params?: {} }
     'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
+    'docs.externalProxyTesting': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.store': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -87,6 +88,7 @@ export type ScannedRoutes = {
     'dashboard': { paramsTuple?: []; params?: {} }
     'dashboard.tasks': { paramsTuple?: []; params?: {} }
     'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
+    'docs.externalProxyTesting': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -117,6 +119,7 @@ export type ScannedRoutes = {
     'dashboard': { paramsTuple?: []; params?: {} }
     'dashboard.tasks': { paramsTuple?: []; params?: {} }
     'dashboard.runtimeQuarantine': { paramsTuple?: []; params?: {} }
+    'docs.externalProxyTesting': { paramsTuple?: []; params?: {} }
     'proxy-lists.index': { paramsTuple?: []; params?: {} }
     'proxy-lists.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'proxy-lists.export': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

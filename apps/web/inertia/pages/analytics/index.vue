@@ -27,10 +27,18 @@ interface LogRow {
   requestedAt: string | null
   proxyListId: number | null
   proxyListName: string | null
+  tunnelPhase: string
+  tunnelPhaseLabel: string
 }
 
 const props = defineProps<{
-  filters: { hours: number; listId: number | null; status: string }
+  filters: {
+    hours: number
+    listId: number | null
+    status: string
+    trafficType: string
+    tunnelPhase: string
+  }
   lists: Array<{ id: number; name: string }>
   trend: {
     unit: 'hour' | 'day'
@@ -76,6 +84,8 @@ const filters = reactive({
   hours: String(props.filters.hours),
   listId: props.filters.listId ? String(props.filters.listId) : ANY,
   status: props.filters.status ?? 'all',
+  trafficType: props.filters.trafficType ?? 'all',
+  tunnelPhase: props.filters.tunnelPhase ?? 'all',
 })
 const selected = ref<Set<number>>(new Set())
 const allOnPageSelected = computed(
@@ -89,14 +99,24 @@ const exportUrl = computed(() => {
   const params = new URLSearchParams()
   params.set('hours', filters.hours)
   params.set('status', filters.status)
+  params.set('trafficType', filters.trafficType)
+  params.set('tunnelPhase', filters.tunnelPhase)
   if (filters.listId !== ANY) params.set('listId', filters.listId)
   return `/app/analytics/export?${params.toString()}`
 })
+
+function tunnelBadgeVariant(phase: string) {
+  if (phase === 'upstream_connect_failed') return 'destructive'
+  if (phase === 'tunnel_upstream_issue' || phase === 'tunnel_client_issue') return 'secondary'
+  return 'outline'
+}
 
 function buildQuery(extra: Record<string, string | number> = {}) {
   const query: Record<string, string | number> = {
     hours: filters.hours,
     status: filters.status,
+    trafficType: filters.trafficType,
+    tunnelPhase: filters.tunnelPhase,
     perPage: props.logs.meta.perPage,
   }
   if (filters.listId !== ANY) query.listId = filters.listId
@@ -108,6 +128,17 @@ function applyFilters() {
     preserveScroll: true,
     preserveState: true,
   })
+}
+
+function applyTunnelPreset(preset: 'connect_only' | 'issues_only') {
+  if (preset === 'connect_only') {
+    filters.trafficType = 'tunnel'
+    filters.tunnelPhase = 'all'
+  } else {
+    filters.trafficType = 'tunnel'
+    filters.tunnelPhase = 'issues'
+  }
+  applyFilters()
 }
 
 function goPage(page: number) {
@@ -193,6 +224,11 @@ function trendBarHeight(value: number) {
           <a :href="exportUrl"> <Icon icon="lucide:download" class="size-4" /> Export CSV </a>
         </Button>
         <Button variant="outline" as-child>
+          <Link href="/app/docs/external-proxy-testing">
+            <Icon icon="lucide:book-open-text" class="size-4" /> Testing SOP
+          </Link>
+        </Button>
+        <Button variant="outline" as-child>
           <Link href="/app">
             <Icon icon="lucide:arrow-left" class="size-4" /> Back to dashboard
           </Link>
@@ -216,6 +252,14 @@ function trendBarHeight(value: number) {
             mana yang paling sibuk dan target mana yang paling sering diakses.
           </p>
         </div>
+        <div class="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" @click="applyTunnelPreset('connect_only')">
+            <Icon icon="lucide:plug-zap" class="size-4" /> CONNECT Only
+          </Button>
+          <Button variant="outline" size="sm" @click="applyTunnelPreset('issues_only')">
+            <Icon icon="lucide:triangle-alert" class="size-4" /> Tunnel Issues
+          </Button>
+        </div>
       </div>
     </div>
 
@@ -227,7 +271,7 @@ function trendBarHeight(value: number) {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
           <div class="grid gap-1">
             <Label class="text-xs">Time window</Label>
             <Select v-model="filters.hours">
@@ -261,6 +305,34 @@ function trendBarHeight(value: number) {
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="success">Success</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="grid gap-1">
+            <Label class="text-xs">Traffic type</Label>
+            <Select v-model="filters.trafficType">
+              <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent class="w-full">
+                <SelectItem value="all">All traffic</SelectItem>
+                <SelectItem value="direct">Direct HTTP</SelectItem>
+                <SelectItem value="tunnel">CONNECT / Tunnel</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="grid gap-1">
+            <Label class="text-xs">Tunnel phase</Label>
+            <Select v-model="filters.tunnelPhase">
+              <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent class="w-full">
+                <SelectItem value="all">All phases</SelectItem>
+                <SelectItem value="issues">Tunnel issues only</SelectItem>
+                <SelectItem value="upstream_connect_failed">Upstream connect failed</SelectItem>
+                <SelectItem value="tunnel_upstream_issue">Tunnel upstream issue</SelectItem>
+                <SelectItem value="tunnel_client_issue">Tunnel client issue</SelectItem>
+                <SelectItem value="tunnel_no_payload">Tunnel no payload</SelectItem>
+                <SelectItem value="tunnel_established">Tunnel established</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -538,6 +610,11 @@ function trendBarHeight(value: number) {
                 <Badge :variant="row.success ? 'default' : 'destructive'">
                   {{ row.success ? `OK ${row.statusCode ?? ''}` : `FAIL ${row.statusCode ?? ''}` }}
                 </Badge>
+                <div v-if="row.isTunnel" class="mt-2">
+                  <Badge :variant="tunnelBadgeVariant(row.tunnelPhase)">
+                    {{ row.tunnelPhaseLabel }}
+                  </Badge>
+                </div>
               </TableCell>
               <TableCell class="text-xs text-muted-foreground">
                 <div>{{ row.selectedProtocol ?? '—' }}</div>
@@ -558,7 +635,12 @@ function trendBarHeight(value: number) {
               >
                 <div>{{ row.durationMs }} ms</div>
                 <div>{{ fmtBytes(row.responseBytes) }}</div>
-                <div v-if="row.errorMessage" class="text-red-600">{{ row.errorMessage }}</div>
+                <div
+                  v-if="row.errorMessage"
+                  :class="row.success ? 'text-amber-600 dark:text-amber-400' : 'text-red-600'"
+                >
+                  {{ row.errorMessage }}
+                </div>
               </TableCell>
               <TableCell>
                 <div class="flex items-center gap-2">
