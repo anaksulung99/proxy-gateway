@@ -9,10 +9,12 @@ import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 import Vue3Toastify, { type ToastContainerOptions } from 'vue3-toastify'
 import 'vue3-toastify/dist/index.css'
 
+const appName = 'Residential Proxy Engine'
 export default function render(page: any) {
   return createInertiaApp({
     page,
     render: renderToString,
+    title: (title) => (title ? `${title} - ${appName}` : appName),
     resolve: (name) => {
       return resolvePageComponent(
         `./pages/${name}.vue`,

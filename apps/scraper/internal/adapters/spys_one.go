@@ -19,9 +19,7 @@ func NewSpysOneAdapter(log zerolog.Logger) Adapter {
 func (a *SpysOneAdapter) Name() string { return "spys-one" }
 
 func (a *SpysOneAdapter) Scrape() ([]ProxyEntry, error) {
-	body, err := httpDo("https://spys.one/en/free-proxy-list/", httpRequestConfig{
-		Headers: map[string]string{"Referer": "https://spys.one/"},
-	})
+	body, err := httpGet("https://spys.one/en/free-proxy-list/")
 	if err != nil {
 		return nil, err
 	}

@@ -70,7 +70,7 @@ func loadFromLookup(lookup func(string) (string, bool)) *Config {
 		GatewaySecret:              getString(lookup, "GATEWAY_SECRET", "changeme"),
 		Workers:                    getInt(lookup, "WORKERS", 50),
 		InternalSecret:             getString(lookup, "INTERNAL_API_SECRET", ""),
-		RuntimeFailureThreshold:    getInt(lookup, "RUNTIME_FAILURE_THRESHOLD", 2),
+		RuntimeFailureThreshold:    getInt(lookup, "RUNTIME_FAILURE_THRESHOLD", 1),
 		RuntimeFailureWindowSec:    getInt(lookup, "RUNTIME_FAILURE_WINDOW_SEC", 300),
 		RuntimeAutoRecheckEnabled:  getBool(lookup, "RUNTIME_AUTO_RECHECK_ENABLED", true),
 		RuntimeAutoRecheckDelaySec: getInt(lookup, "RUNTIME_AUTO_RECHECK_DELAY_SEC", 90),
