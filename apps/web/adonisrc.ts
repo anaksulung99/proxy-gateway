@@ -63,7 +63,7 @@ export default defineConfig({
     () => import('#providers/api_provider'),
     () => import('@adonisjs/bouncer/bouncer_provider'),
     () => import('@adonisjs/mail/mail_provider'),
-    () => import('@adonisjs/i18n/i18n_provider')
+    () => import('@adonisjs/i18n/i18n_provider'),
   ],
 
   /*
@@ -80,6 +80,7 @@ export default defineConfig({
     () => import('#start/validator'),
     () => import('#start/scraper_scheduler'),
     () => import('#start/proxy_usage_retention'),
+    () => import('#start/geo_enrichment'),
   ],
 
   /*
@@ -133,7 +134,7 @@ export default defineConfig({
     {
       pattern: 'resources/lang/**/*.{json,yaml,yml}',
       reloadServer: false,
-    }
+    },
   ],
 
   hooks: {
