@@ -7,8 +7,14 @@ WORKDIR /app
 
 # ---- install all deps (incl dev, needed for the Vite/Adonis build) ----
 FROM base AS deps
+# Toolchain for native modules (better-sqlite3 compiles on musl/alpine).
+# This stage is throwaway, so it never bloats the final image.
+RUN apk add --no-cache python3 make g++
 COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# pnpm 11 errors on un-approved dependency build scripts (esbuild, better-sqlite3,
+# etc.). The build-approval config lives in the repo-root pnpm-workspace.yaml,
+# which isn't in this single-package context — so explicitly allow builds here.
+RUN pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 
 # ---- compile TypeScript + build Vite assets -> /app/build ----
 FROM base AS build
@@ -29,7 +35,10 @@ ENV NODE_ENV=production
 RUN apk add --no-cache wget
 # `node ace build` emits a self-contained app in ./build (incl package.json + lockfile)
 COPY --from=build /app/build ./
-RUN pnpm install --prod --frozen-lockfile
+# Build tools only for the native rebuild, then removed to keep the image lean.
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+ && pnpm install --prod --frozen-lockfile --config.dangerouslyAllowAllBuilds=true \
+ && apk del .build-deps
 COPY infra/docker/web-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 3333

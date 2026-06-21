@@ -154,6 +154,8 @@ services:
       ENABLE_REGISTRATION: "${ENABLE_REGISTRATION:-false}"
       GATEWAY_PORT: "${GATEWAY_PORT:-8000}"
       SOCKS_PORT: "${SOCKS_PORT:-1080}"
+      DEFAULT_ADMIN_EMAIL: "${DEFAULT_ADMIN_EMAIL:-admin@example.com}"
+      DEFAULT_ADMIN_PASSWORD: "${DEFAULT_ADMIN_PASSWORD:-password321}"
     ports:
       - "${WEB_HOST_PORT:-3333}:3333"
     depends_on:

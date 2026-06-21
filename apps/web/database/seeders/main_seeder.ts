@@ -7,6 +7,7 @@ import RotationConfig from '#models/rotation_config'
 import HealthResult from '#models/health_result'
 import { DateTime } from 'luxon'
 import Role from '#models/role'
+import Env from '#start/env'
 
 export default class extends BaseSeeder {
   async run() {
@@ -17,8 +18,8 @@ export default class extends BaseSeeder {
 
     // 1. User (idempotent by email)
     const user = await User.firstOrCreate(
-      { email: 'admin@proxy.local' },
-      { fullName: 'Admin Dev', password: 'password123', roleId: adminRole.id }
+      { email: Env.get('DEFAULT_ADMIN_EMAIL') },
+      { fullName: 'Admin Dev', password: Env.get('DEFAULT_ADMIN_PASSWORD'), roleId: adminRole.id }
     )
 
     if (user.roleId !== adminRole.id) {

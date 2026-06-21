@@ -77,4 +77,6 @@ export default await Env.create(new URL('../', import.meta.url), {
   INTERNAL_API_SECRET: Env.schema.string.optional(),
 
   ENABLE_REGISTRATION: Env.schema.boolean.optional(),
+  DEFAULT_ADMIN_EMAIL: Env.schema.string.optional(),
+  DEFAULT_ADMIN_PASSWORD: Env.schema.string.optional(),
 })
