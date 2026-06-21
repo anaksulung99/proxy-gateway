@@ -8,6 +8,7 @@ export const controllers = {
   ApiKeys: () => import('#controllers/api_keys_controller'),
   Auth: () => import('#controllers/auth_controller'),
   Dashboard: () => import('#controllers/dashboard_controller'),
+  Docs: () => import('#controllers/docs_controller'),
   HealthChecker: () => import('#controllers/health_checker_controller'),
   Home: () => import('#controllers/home_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
@@ -18,5 +19,4 @@ export const controllers = {
   Session: () => import('#controllers/session_controller'),
   Teams: () => import('#controllers/teams_controller'),
   ToolsChecker: () => import('#controllers/tools_checker_controller'),
-  Docs: () => import('#controllers/docs_controller'),
 }

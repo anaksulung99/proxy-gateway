@@ -17,6 +17,7 @@ declare module '@adonisjs/inertia/types' {
     'auth/verify-email': ExtractProps<(typeof import('../../inertia/pages/auth/verify-email.vue'))['default']>
     'dashboard/index': ExtractProps<(typeof import('../../inertia/pages/dashboard/index.vue'))['default']>
     'dashboard/runtime_quarantine': ExtractProps<(typeof import('../../inertia/pages/dashboard/runtime_quarantine.vue'))['default']>
+    'docs/external_proxy_testing': ExtractProps<(typeof import('../../inertia/pages/docs/external_proxy_testing.vue'))['default']>
     'errors/not_found': ExtractProps<(typeof import('../../inertia/pages/errors/not_found.vue'))['default']>
     'errors/server_error': ExtractProps<(typeof import('../../inertia/pages/errors/server_error.vue'))['default']>
     'home': ExtractProps<(typeof import('../../inertia/pages/home.vue'))['default']>
@@ -38,6 +39,5 @@ declare module '@adonisjs/inertia/types' {
     'teams/index': ExtractProps<(typeof import('../../inertia/pages/teams/index.vue'))['default']>
     'tools/index': ExtractProps<(typeof import('../../inertia/pages/tools/index.vue'))['default']>
     'tools/show': ExtractProps<(typeof import('../../inertia/pages/tools/show.vue'))['default']>
-    'docs/external_proxy_testing': ExtractProps<(typeof import('../../inertia/pages/docs/external_proxy_testing.vue'))['default']>
   }
 }
