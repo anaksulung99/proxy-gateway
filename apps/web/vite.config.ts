@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import adonisjs from '@adonisjs/vite/client'
 import inertia from '@adonisjs/inertia/vite'
@@ -46,11 +47,24 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      '~/': `${import.meta.dirname}/inertia/`,
-      '@generated': `${import.meta.dirname}/.adonisjs/client/`,
-      '@/': `${new URL('./inertia/', import.meta.url).pathname}`,
-    },
+    alias: [
+      {
+        find: /^@iconify\/vue$/,
+        replacement: fileURLToPath(new URL('./inertia/lib/iconify-offline.ts', import.meta.url)),
+      },
+      {
+        find: '~/',
+        replacement: `${import.meta.dirname}/inertia/`,
+      },
+      {
+        find: '@generated',
+        replacement: `${import.meta.dirname}/.adonisjs/client/`,
+      },
+      {
+        find: '@/',
+        replacement: `${new URL('./inertia/', import.meta.url).pathname}`,
+      },
+    ],
   },
   server: {
     watch: {
