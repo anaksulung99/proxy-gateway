@@ -34,7 +34,12 @@ func (a *HideMnAdapter) Scrape() ([]ProxyEntry, error) {
 		}
 		pageURL.RawQuery = query.Encode()
 
-		body, err := httpGet(pageURL.String())
+		if page > 1 {
+			paginationDelay()
+		}
+		body, err := httpDo(pageURL.String(), httpRequestConfig{
+			Headers: map[string]string{"Referer": "https://hide.mn/en/proxy-list/"},
+		})
 		if err != nil {
 			return nil, err
 		}

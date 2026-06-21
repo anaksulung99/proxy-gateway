@@ -29,9 +29,14 @@ func (a *ProxydbAdapter) Scrape() ([]ProxyEntry, error) {
 	for !visitedOffsets[currentOffset] {
 		visitedOffsets[currentOffset] = true
 		pageCount++
+		if pageCount > 1 {
+			paginationDelay() // throttle to avoid proxydb's HTTP 429
+		}
 		pageURL.RawQuery = url.Values{"offset": []string{strconv.Itoa(currentOffset)}}.Encode()
 
-		body, err := httpGet(pageURL.String())
+		body, err := httpDo(pageURL.String(), httpRequestConfig{
+			Headers: map[string]string{"Referer": "https://proxydb.net/"},
+		})
 		if err != nil {
 			return nil, err
 		}

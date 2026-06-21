@@ -6,16 +6,43 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 const httpTimeout = 20 * time.Second
+
+// Shared client with a cookie jar so anti-bot challenge cookies set on the first
+// request are reused on retries and subsequent paginated requests. http.Client is
+// safe for concurrent use.
+var (
+	sharedClientOnce sync.Once
+	sharedClient     *http.Client
+)
+
+func httpClient() *http.Client {
+	sharedClientOnce.Do(func() {
+		jar, _ := cookiejar.New(nil)
+		sharedClient = &http.Client{Timeout: httpTimeout, Jar: jar}
+	})
+	return sharedClient
+}
+
+// paginationDelay sleeps between paginated page fetches to avoid tripping
+// per-IP rate limits (e.g. proxydb's HTTP 429). Configurable via
+// SCRAPER_PAGINATION_DELAY_MS (default 800ms; 0 disables).
+func paginationDelay() {
+	if ms := envInt("SCRAPER_PAGINATION_DELAY_MS", 800); ms > 0 {
+		time.Sleep(time.Duration(ms) * time.Millisecond)
+	}
+}
 
 var (
 	ipPortRe = regexp.MustCompile(`\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})\b`)
@@ -29,10 +56,20 @@ type httpRequestConfig struct {
 	Headers map[string]string
 }
 
+// Fuller browser fingerprint — naive 403 anti-bot filters check for these
+// headers. (Accept-Encoding is intentionally omitted so Go's transport handles
+// gzip transparently.)
 var defaultRequestHeaders = map[string]string{
-	"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-	"Accept":          "text/html,application/xhtml+xml,application/json,*/*;q=0.8",
-	"Accept-Language": "en-US,en;q=0.9",
+	"User-Agent":                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+	"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+	"Accept-Language":           "en-US,en;q=0.9",
+	"Upgrade-Insecure-Requests": "1",
+	"Sec-Fetch-Dest":            "document",
+	"Sec-Fetch-Mode":            "navigate",
+	"Sec-Fetch-User":            "?1",
+	"Sec-CH-UA":                 `"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"`,
+	"Sec-CH-UA-Mobile":          "?0",
+	"Sec-CH-UA-Platform":        `"Windows"`,
 }
 
 // httpGet fetches a URL with browser-like defaults, retry, and fallback support.
@@ -56,7 +93,7 @@ func httpFetchWithFallback(urls []string, cfg httpRequestConfig) (string, error)
 		cfg.Method = http.MethodGet
 	}
 
-	client := &http.Client{Timeout: httpTimeout}
+	client := httpClient()
 	attempts := envInt("SCRAPER_HTTP_RETRY_ATTEMPTS", 3)
 	if attempts < 1 {
 		attempts = 1
