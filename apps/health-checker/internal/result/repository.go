@@ -30,11 +30,16 @@ func classify(res checker.CheckResult) string {
 	return "unhealthy"
 }
 
+func shouldResolveRuntimeQuarantine(trigger string) bool {
+	return trigger == "runtime_quarantine_recheck" || trigger == "runtime_auto_recheck"
+}
+
 // Save persists a check outcome: updates the proxy_entries row, appends a
 // health_results record, and advances an optional health_check_runs aggregate.
 // Runs in a single transaction.
 func (r *Repository) Save(ctx context.Context, runID int64, proxyEntryID int64, res checker.CheckResult) error {
 	status := classify(res)
+	runTrigger := ""
 
 	var latency *int64
 	if res.Latency > 0 {
@@ -86,6 +91,15 @@ func (r *Repository) Save(ctx context.Context, runID int64, proxyEntryID int64, 
 	}
 
 	if runID > 0 {
+		if err := tx.QueryRow(ctx,
+			`SELECT COALESCE(meta->>'trigger', source_type)
+			   FROM health_check_runs
+			  WHERE id = $1`,
+			runID,
+		).Scan(&runTrigger); err != nil {
+			return err
+		}
+
 		healthyInc := 0
 		unhealthyInc := 0
 		timeoutInc := 0
@@ -118,6 +132,21 @@ func (r *Repository) Save(ctx context.Context, runID int64, proxyEntryID int64, 
 			       updated_at = $5
 			 WHERE id = $1`,
 			runID, healthyInc, unhealthyInc, timeoutInc, now,
+		); err != nil {
+			return err
+		}
+	}
+
+	if status == "healthy" && runID > 0 && shouldResolveRuntimeQuarantine(runTrigger) {
+		if _, err := tx.Exec(ctx,
+			`UPDATE health_results
+			    SET resolved_at = $1,
+			        resolved_by_run_id = $2,
+			        updated_at = $1
+			  WHERE proxy_entry_id = $3
+			    AND resolved_at IS NULL
+			    AND error_message LIKE '[runtime]%'`,
+			now, runID, proxyEntryID,
 		); err != nil {
 			return err
 		}

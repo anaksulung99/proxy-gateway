@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Head, router, useForm, usePage } from '@inertiajs/vue3'
+import { Head, router, useForm } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
@@ -59,29 +59,7 @@ const form = useForm({
   targetUrl: props.input?.targetUrl ?? '',
 })
 
-const page = usePage<{
-  flash?: {
-    healthCheckRunSummary?: {
-      runId?: number | null
-      sourceType: 'tools' | 'proxy_list_bulk'
-      status: 'success' | 'error'
-      mode: 'request' | 'playwright' | 'crawlee'
-      targetUrl: string | null
-      totalInputs: number
-      checked: number
-      healthy: number
-      unhealthy: number
-      timeout: number
-      invalid: number
-      finishedAt: string
-      errorMessage?: string | null
-    } | null
-  }
-}>()
-
-const runSummary = computed(
-  () => flashStore.flash?.healthCheckRunSummary ?? page.props.flash?.healthCheckRunSummary ?? null
-)
+const runSummary = computed(() => flashStore.flash?.healthCheckRunSummary ?? null)
 const inputCount = computed(() => form.raw.split(/\r?\n/).filter((line) => line.trim()).length)
 const firstRow = computed(() =>
   props.meta.total === 0 ? 0 : (props.meta.currentPage - 1) * props.meta.perPage + 1

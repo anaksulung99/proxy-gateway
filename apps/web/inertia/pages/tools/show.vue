@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
@@ -8,6 +8,9 @@ import { useGlobalAlert } from '~/composables/useAlert'
 interface RunRow {
   id: number
   sourceType: 'tools' | 'proxy_list_bulk'
+  trigger: string
+  triggerLabel: string
+  stage: string | null
   status: 'running' | 'success' | 'error'
   mode: 'request' | 'playwright' | 'crawlee'
   targetUrl: string | null
@@ -18,6 +21,12 @@ interface RunRow {
   timeoutCount: number
   invalidCount: number
   errorMessage: string | null
+  retryAttempt: number
+  retryMax: number
+  retryKind: string | null
+  previousRunId: number | null
+  scheduledDelaySec: number | null
+  retryDelaySec: number | null
   startedAt: string | null
   finishedAt: string | null
 }
@@ -34,7 +43,7 @@ interface PaginatedRuns {
 
 const props = defineProps<{
   runs: PaginatedRuns
-  filters: { status: string | null; sourceType: string | null }
+  filters: { status: string | null; sourceType: string | null; trigger: string | null }
 }>()
 
 const { warning } = useGlobalAlert()
@@ -43,8 +52,11 @@ const ANY = '__any__'
 const filters = reactive({
   status: props.filters.status ?? ANY,
   sourceType: props.filters.sourceType ?? ANY,
+  trigger: props.filters.trigger ?? ANY,
 })
-const hasFilters = computed(() => filters.status !== ANY || filters.sourceType !== ANY)
+const hasFilters = computed(
+  () => filters.status !== ANY || filters.sourceType !== ANY || filters.trigger !== ANY
+)
 
 const firstRow = computed(() =>
   props.runs.meta.total === 0 ? 0 : (props.runs.meta.currentPage - 1) * props.runs.meta.perPage + 1
@@ -65,6 +77,7 @@ function buildQuery(extra: Record<string, string | number> = {}) {
   const query: Record<string, string | number> = {}
   if (filters.status !== ANY) query.status = filters.status
   if (filters.sourceType !== ANY) query.sourceType = filters.sourceType
+  if (filters.trigger !== ANY) query.trigger = filters.trigger
   return { ...query, ...extra }
 }
 
@@ -109,6 +122,7 @@ function toggleOne(id: number, value: boolean | 'indeterminate') {
 function clearFilter() {
   filters.status = ANY
   filters.sourceType = ANY
+  filters.trigger = ANY
   applyFilters()
 }
 
@@ -154,7 +168,7 @@ function fmtDate(value: string | null) {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div class="grid gap-1">
             <Label class="text-xs">Status</Label>
             <Select v-model="filters.status">
@@ -176,6 +190,22 @@ function fmtDate(value: string | null) {
                 <SelectItem :value="ANY">All sources</SelectItem>
                 <SelectItem value="tools">Tools Checker</SelectItem>
                 <SelectItem value="proxy_list_bulk">Proxy List Bulk Re-check</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="grid gap-1">
+            <Label class="text-xs">Trigger</Label>
+            <Select v-model="filters.trigger">
+              <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent class="w-full">
+                <SelectItem :value="ANY">All triggers</SelectItem>
+                <SelectItem value="tools_manual">Tools Manual</SelectItem>
+                <SelectItem value="manual_recheck">Manual Recheck</SelectItem>
+                <SelectItem value="runtime_auto_recheck">Runtime Auto Recheck</SelectItem>
+                <SelectItem value="runtime_quarantine_recheck">Runtime Quarantine Recheck</SelectItem>
+                <SelectItem value="import_auto_check">Import Auto Check</SelectItem>
+                <SelectItem value="scraper_auto_check">Scraper Auto Check</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -248,7 +278,14 @@ function fmtDate(value: string | null) {
               </TableCell>
               <TableCell>
                 <div class="font-medium uppercase">{{ run.sourceType }}</div>
-                <div class="text-xs text-muted-foreground">Run #{{ run.id }}</div>
+                <div class="text-xs text-muted-foreground">
+                  {{ run.triggerLabel }} · Run #{{ run.id }}
+                  <span v-if="run.retryAttempt > 0"> · Attempt {{ run.retryAttempt }}/{{ run.retryMax }}</span>
+                </div>
+                <div v-if="run.stage || run.previousRunId" class="text-xs text-muted-foreground">
+                  <span v-if="run.stage">Stage: {{ run.stage }}</span>
+                  <span v-if="run.previousRunId"> · Prev run #{{ run.previousRunId }}</span>
+                </div>
               </TableCell>
               <TableCell>
                 <Badge
@@ -277,6 +314,13 @@ function fmtDate(value: string | null) {
                 <div class="text-xs text-muted-foreground">
                   {{ run.unhealthyCount }} unhealthy · {{ run.timeoutCount }} timeout ·
                   {{ run.invalidCount }} invalid
+                </div>
+                <div
+                  v-if="run.retryAttempt > 0 && (run.scheduledDelaySec || run.retryDelaySec)"
+                  class="text-xs text-muted-foreground"
+                >
+                  Delay {{ run.scheduledDelaySec ?? 0 }}s
+                  <span v-if="run.retryDelaySec"> · Retry window {{ run.retryDelaySec }}s</span>
                 </div>
                 <div v-if="run.errorMessage" class="mt-1 text-xs text-red-600">
                   {{ run.errorMessage }}

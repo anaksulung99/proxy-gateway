@@ -7,6 +7,10 @@ import { bulkActionValidator, recheckBulkValidator } from '#validators/proxy_ent
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class ProxyEntriesController {
+  private resolveRecheckTrigger(trigger?: string) {
+    return trigger === 'runtime_quarantine_recheck' ? 'runtime_quarantine_recheck' : 'manual_recheck'
+  }
+
   /**
    * POST /app/proxy-entries/bulk — delete or re-check selected entries.
    */
@@ -42,7 +46,9 @@ export default class ProxyEntriesController {
     }
 
     try {
-      const queued = await this.enqueueBulkRecheck(team.id, list, entries)
+      const queued = await this.enqueueBulkRecheck(team.id, list, entries, {
+        trigger: this.resolveRecheckTrigger(payload.trigger),
+      })
       session.flash(
         'success',
         `Queued ${queued.enqueued} selected proxies untuk health check pada list ${list.name}`
@@ -134,7 +140,10 @@ export default class ProxyEntriesController {
     }
 
     try {
-      const queued = await this.enqueueBulkRecheck(team.id, list, entries, payload.status)
+      const queued = await this.enqueueBulkRecheck(team.id, list, entries, {
+        requestedStatus: payload.status,
+        trigger: 'manual_recheck',
+      })
       session.flash(
         'success',
         `Queued ${queued.enqueued} ${payload.status} proxies untuk health check pada list ${list.name}`
@@ -150,18 +159,22 @@ export default class ProxyEntriesController {
     teamId: number,
     list: ProxyList,
     entries: ProxyEntry[],
-    requestedStatus?: string
+    options?: {
+      requestedStatus?: string
+      trigger?: 'manual_recheck' | 'runtime_quarantine_recheck'
+    }
   ) {
+    const trigger = options?.trigger ?? 'manual_recheck'
     const run = await healthClient.createQueuedRun({
       teamId,
       proxyListId: list.id,
       mode: 'request',
       totalInputs: entries.length,
       meta: {
-        trigger: 'manual_recheck',
+        trigger,
         listName: list.name,
         stage: 'queued',
-        requestedStatus: requestedStatus ?? 'selected',
+        requestedStatus: options?.requestedStatus ?? 'selected',
       },
     })
 

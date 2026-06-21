@@ -22,6 +22,7 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
      */
     const error = session?.flashMessages.get('error') as string
     const success = session?.flashMessages.get('success') as string
+    const newApiKey = session?.flashMessages.get('newApiKey')
     const importSummary = session?.flashMessages.get('importSummary')
     const scraperRunSummary = session?.flashMessages.get('scraperRunSummary')
     const healthCheckRunSummary = session?.flashMessages.get('healthCheckRunSummary')
@@ -35,6 +36,7 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       flash: ctx.inertia.always({
         error,
         success,
+        newApiKey,
         importSummary,
         scraperRunSummary,
         healthCheckRunSummary,

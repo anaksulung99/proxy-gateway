@@ -78,7 +78,7 @@ export class HealthCheckRunSchema extends BaseModel {
 }
 
 export class HealthResultSchema extends BaseModel {
-  static $columns = ['checkedAt', 'createdAt', 'errorMessage', 'healthy', 'id', 'latencyMs', 'mode', 'proxyEntryId', 'returnedIp', 'statusCode', 'updatedAt'] as const
+  static $columns = ['checkedAt', 'createdAt', 'errorMessage', 'healthy', 'id', 'latencyMs', 'mode', 'proxyEntryId', 'resolvedAt', 'resolvedByRunId', 'returnedIp', 'statusCode', 'updatedAt'] as const
   $columns = HealthResultSchema.$columns
   @column.dateTime()
   declare checkedAt: DateTime
@@ -96,6 +96,10 @@ export class HealthResultSchema extends BaseModel {
   declare mode: string
   @column()
   declare proxyEntryId: number
+  @column.dateTime()
+  declare resolvedAt: DateTime | null
+  @column()
+  declare resolvedByRunId: number | null
   @column()
   declare returnedIp: string | null
   @column()

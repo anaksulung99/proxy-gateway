@@ -81,10 +81,21 @@ const props = defineProps<{
       }
   runtimeQuarantine: {
     total24h: number
+    active24h: number
+    resolved24h: number
     timeout24h: number
     unhealthy24h: number
     affectedLists24h: number
     latestAt: string | null
+    autoRecheck: {
+      total24h: number
+      success24h: number
+      error24h: number
+      running24h: number
+      retried24h: number
+      recoveredOnRetry24h: number
+      latestAt: string | null
+    }
     recent: Array<{
       id: number
       proxyEntryId: number
@@ -94,7 +105,10 @@ const props = defineProps<{
       protocol: string
       countryCode: string | null
       status: 'timeout' | 'unhealthy'
+      resolution: 'active' | 'resolved'
       checkedAt: string
+      resolvedAt: string | null
+      resolvedByRunId: number | null
       errorMessage: string
     }>
   }
@@ -647,13 +661,27 @@ const refreshWithState = () => {
             </div>
           </CardHeader>
           <CardContent class="space-y-4">
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <div class="rounded-xl border bg-card/70 p-4">
-                <p class="text-xs text-muted-foreground">Auto-Quarantined 24h</p>
+                <p class="text-xs text-muted-foreground">Runtime Events 24h</p>
                 <p class="mt-2 text-2xl font-semibold">{{ runtimeQuarantine.total24h }}</p>
                 <p class="mt-1 text-xs text-muted-foreground">
-                  Event runtime failure yang menurunkan health proxy
+                  Semua event runtime failure yang menurunkan health proxy
                 </p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Active</p>
+                <p class="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
+                  {{ runtimeQuarantine.active24h }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">Masih belum resolved</p>
+              </div>
+              <div class="rounded-xl border bg-card/70 p-4">
+                <p class="text-xs text-muted-foreground">Resolved</p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                  {{ runtimeQuarantine.resolved24h }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">Sudah sehat lagi via recheck</p>
               </div>
               <div class="rounded-xl border bg-card/70 p-4">
                 <p class="text-xs text-muted-foreground">Timeout</p>
@@ -677,6 +705,64 @@ const refreshWithState = () => {
                 <p class="mt-1 text-xs text-muted-foreground">
                   Last event {{ fmtDate(runtimeQuarantine.latestAt) }}
                 </p>
+              </div>
+            </div>
+
+            <div class="rounded-xl border bg-card/60 p-4">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-sm font-medium">Runtime Auto Recheck 24h</p>
+                  <p class="text-xs text-muted-foreground">
+                    Last activity {{ fmtDate(runtimeQuarantine.autoRecheck.latestAt) }}
+                  </p>
+                  <p class="text-xs text-muted-foreground">
+                    {{ runtimeQuarantine.autoRecheck.retried24h }} retried run ·
+                    {{ runtimeQuarantine.autoRecheck.recoveredOnRetry24h }} recovered on retry
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" as-child>
+                  <Link href="/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck">
+                    Open auto recheck logs
+                  </Link>
+                </Button>
+              </div>
+              <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Runs</p>
+                  <p class="mt-2 text-2xl font-semibold">
+                    {{ runtimeQuarantine.autoRecheck.total24h }}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Success</p>
+                  <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                    {{ runtimeQuarantine.autoRecheck.success24h }}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Error</p>
+                  <p class="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
+                    {{ runtimeQuarantine.autoRecheck.error24h }}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Running</p>
+                  <p class="mt-2 text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                    {{ runtimeQuarantine.autoRecheck.running24h }}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Retried</p>
+                  <p class="mt-2 text-2xl font-semibold text-sky-600 dark:text-sky-400">
+                    {{ runtimeQuarantine.autoRecheck.retried24h }}
+                  </p>
+                </div>
+                <div class="rounded-xl border bg-card/70 p-4">
+                  <p class="text-xs text-muted-foreground">Recovered On Retry</p>
+                  <p class="mt-2 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                    {{ runtimeQuarantine.autoRecheck.recoveredOnRetry24h }}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -712,13 +798,20 @@ const refreshWithState = () => {
                       <span v-if="event.countryCode"> · {{ event.countryCode }}</span>
                     </p>
                   </div>
-                  <Badge :variant="event.status === 'timeout' ? 'secondary' : 'destructive'">
-                    {{ event.status }}
-                  </Badge>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Badge :variant="event.status === 'timeout' ? 'secondary' : 'destructive'">
+                      {{ event.status }}
+                    </Badge>
+                    <Badge variant="outline">
+                      {{ event.resolution }}
+                    </Badge>
+                  </div>
                 </div>
                 <p class="mt-3 text-sm text-muted-foreground">{{ event.errorMessage }}</p>
                 <p class="mt-2 text-xs text-muted-foreground">
                   Proxy #{{ event.proxyEntryId }} · {{ fmtDate(event.checkedAt) }}
+                  <span v-if="event.resolvedAt"> · Resolved {{ fmtDate(event.resolvedAt) }}</span>
+                  <span v-if="event.resolvedByRunId"> · Run #{{ event.resolvedByRunId }}</span>
                 </p>
               </div>
             </div>

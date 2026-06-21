@@ -72,6 +72,16 @@ function classify(r: CheckResult): 'healthy' | 'unhealthy' | 'timeout' {
  * thrown errors so the caller can flash a friendly message.
  */
 export class HealthCheckClientService {
+  describeTrigger(trigger: string | null | undefined) {
+    if (trigger === 'runtime_auto_recheck') return 'Runtime auto recheck'
+    if (trigger === 'runtime_quarantine_recheck') return 'Runtime quarantine recheck'
+    if (trigger === 'manual_recheck') return 'Proxy list recheck'
+    if (trigger === 'import_auto_check' || trigger === 'scraper_auto_check')
+      return 'Auto health check'
+    if (trigger === 'tools_manual') return 'Manual health check'
+    return 'Health check'
+  }
+
   summarizeResults(results: CheckResult[], invalidCount = 0) {
     const summary = { checked: 0, healthy: 0, unhealthy: 0, timeout: 0, invalid: invalidCount }
     for (const result of results) {
@@ -83,9 +93,21 @@ export class HealthCheckClientService {
   }
 
   serializeRun(run: HealthCheckRun) {
+    const meta = ((run.meta ?? {}) as Record<string, unknown>) || {}
+    const trigger = typeof meta.trigger === 'string' ? meta.trigger : run.sourceType
+    const retryAttempt =
+      typeof meta.retryAttempt === 'number'
+        ? meta.retryAttempt
+        : Number(meta.retryAttempt ?? (trigger === 'runtime_auto_recheck' ? 1 : 0)) || 0
+    const retryMax =
+      typeof meta.retryMax === 'number' ? meta.retryMax : Number(meta.retryMax ?? retryAttempt) || 0
+
     return {
       id: run.id,
       sourceType: run.sourceType,
+      trigger,
+      triggerLabel: this.describeTrigger(trigger),
+      stage: typeof meta.stage === 'string' ? meta.stage : null,
       status: run.status,
       mode: run.mode,
       targetUrl: run.targetUrl,
@@ -97,6 +119,13 @@ export class HealthCheckClientService {
       invalidCount: run.invalidCount,
       errorMessage: run.errorMessage,
       meta: run.meta,
+      retryAttempt,
+      retryMax,
+      retryKind: typeof meta.retryKind === 'string' ? meta.retryKind : null,
+      previousRunId: typeof meta.previousRunId === 'number' ? meta.previousRunId : null,
+      scheduledDelaySec:
+        typeof meta.scheduledDelaySec === 'number' ? meta.scheduledDelaySec : null,
+      retryDelaySec: typeof meta.retryDelaySec === 'number' ? meta.retryDelaySec : null,
       proxyListId: run.proxyListId,
       startedAt: run.startedAt?.toISO() ?? null,
       finishedAt: run.finishedAt?.toISO() ?? null,

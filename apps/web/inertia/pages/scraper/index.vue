@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { Head, router, usePage } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { usePolling } from '~/composables/usePolling'
@@ -109,19 +109,11 @@ const scheduleDrafts = reactive<Record<number, string>>({})
 const filterState = reactive({
   healthStatus: props.filters.healthStatus ?? ANY,
 })
-const page = usePage<{
-  flash?: {
-    scraperRunSummary?: any
-  }
-}>()
-
 for (const source of props.sources) {
   scheduleDrafts[source.id] = source.scheduleCron ?? ''
 }
 
-const scraperRunSummary = computed(
-  () => flashStore.flash?.scraperRunSummary ?? page.props.flash?.scraperRunSummary ?? null
-)
+const scraperRunSummary = computed(() => flashStore.flash?.scraperRunSummary ?? null)
 const enabledRunnableCount = computed(
   () => props.sources.filter((source) => source.isEnabled && source.proxyListId).length
 )

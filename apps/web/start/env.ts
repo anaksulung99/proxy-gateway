@@ -75,4 +75,6 @@ export default await Env.create(new URL('../', import.meta.url), {
   GATEWAY_SECRET: Env.schema.string.optional(),
   PROXY_ENGINE_ADMIN_URL: Env.schema.string.optional(),
   INTERNAL_API_SECRET: Env.schema.string.optional(),
+
+  ENABLE_REGISTRATION: Env.schema.boolean.optional(),
 })

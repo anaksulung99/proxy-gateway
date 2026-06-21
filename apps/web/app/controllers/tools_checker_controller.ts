@@ -48,11 +48,13 @@ export default class ToolsCheckerController {
 
     const status = qs.status ? String(qs.status) : null
     const sourceType = qs.sourceType ? String(qs.sourceType) : null
+    const trigger = qs.trigger ? String(qs.trigger) : null
 
     const query = HealthCheckRun.query().where('team_id', team.id).orderBy('started_at', 'desc')
 
     if (status) query.where('status', status)
     if (sourceType) query.where('source_type', sourceType)
+    if (trigger) query.whereRaw(`COALESCE(meta->>'trigger', source_type) = ?`, [trigger])
 
     const runs = await query.paginate(page, perPage)
     runs.baseUrl(request.url())
@@ -64,7 +66,7 @@ export default class ToolsCheckerController {
           ...runs.serialize(),
           data: runs.all().map((run) => healthClient.serializeRun(run)),
         },
-        filters: { status, sourceType },
+        filters: { status, sourceType, trigger },
       } as never
     )
   }

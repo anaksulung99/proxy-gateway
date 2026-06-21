@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Head, router, useForm, usePage } from '@inertiajs/vue3'
+import { Head, router, useForm } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
 import { useFlashStore } from '~/stores/flash'
-import { useTeamStore } from '~/stores/team'
 
 interface ApiKeyRow {
   id: number
@@ -26,11 +25,9 @@ const props = defineProps<{
 
 const MB = 1024 * 1024
 const { warning } = useGlobalAlert()
-const page = usePage<{ flash?: { newApiKey?: { name: string; token: string } | null } }>()
 const flashStore = useFlashStore()
-const teamStore = useTeamStore()
-const newKey = computed(() => flashStore.flash?.newApiKey ?? page.props.flash?.newApiKey ?? null)
-const team = computed(() => teamStore.team ?? props.team)
+const newKey = computed(() => flashStore.flash?.newApiKey ?? null)
+const team = computed(() => props.team)
 
 function fmtBytes(v: number | null) {
   if (!v) return v === 0 ? '0 B' : '∞'

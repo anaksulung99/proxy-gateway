@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Head, usePage } from '@inertiajs/vue3'
+import { Head } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { usePolling } from '~/composables/usePolling'
@@ -63,24 +63,7 @@ const props = defineProps<{
 
 const showEdit = ref(false)
 const flashStore = useFlashStore()
-const page = usePage<{
-  flash?: {
-    importSummary?: {
-      totalLines: number
-      parsed: number
-      invalid: number
-      invalidSamples: { line: string; reason: string }[]
-      duplicatesInBatch: number
-      created: number
-      updated: number
-      enqueued: number
-    } | null
-  }
-}>()
-
-const importSummary = computed(
-  () => flashStore.flash?.importSummary ?? page.props.flash?.importSummary ?? null
-)
+const importSummary = computed(() => flashStore.flash?.importSummary ?? null)
 const healthyRate = computed(() =>
   props.stats.total > 0 ? Math.round((props.stats.healthy / props.stats.total) * 100) : 0
 )

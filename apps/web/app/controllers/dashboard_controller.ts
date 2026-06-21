@@ -13,6 +13,8 @@ import { DateTime } from 'luxon'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class DashboardController {
+  private runtimeResolutionColumnsPromise?: Promise<boolean>
+
   async index({ inertia, request, team }: HttpContext) {
     const allProxyLists = await ProxyList.query()
       .where('team_id', team.id)
@@ -78,6 +80,7 @@ export default class DashboardController {
 
     const now = DateTime.now()
     const last24h = now.minus({ hours: 24 })
+    const runtimeResolutionSupported = await this.hasRuntimeResolutionColumns()
     const [
       scraperSources,
       scraperRuns24h,
@@ -91,6 +94,7 @@ export default class DashboardController {
       usageTopPoolRow,
       runtimeQuarantineSummaryRow,
       recentRuntimeQuarantineRows,
+      runtimeAutoRecheckSummaryRow,
     ] = await Promise.all([
       selectedPool
         ? ScraperSource.query().where('team_id', team.id).where('proxy_list_id', selectedPool.id)
@@ -159,24 +163,7 @@ export default class DashboardController {
         .if(selectedPool !== null, (query) => query.where('proxy_entries.proxy_list_id', selectedPool!.id))
         .count('* as total')
         .select(
-          db.raw(`
-            SUM(
-              CASE
-                WHEN LOWER(COALESCE(health_results.error_message, '')) LIKE '%timeout%'
-                  OR LOWER(COALESCE(health_results.error_message, '')) LIKE '%deadline%'
-                THEN 1 ELSE 0
-              END
-            ) as timeout_count
-          `),
-          db.raw(`
-            SUM(
-              CASE
-                WHEN LOWER(COALESCE(health_results.error_message, '')) LIKE '%timeout%'
-                  OR LOWER(COALESCE(health_results.error_message, '')) LIKE '%deadline%'
-                THEN 0 ELSE 1
-              END
-            ) as unhealthy_count
-          `),
+          ...this.runtimeSummarySelects(runtimeResolutionSupported),
           db.raw('COUNT(DISTINCT proxy_entries.proxy_list_id) as affected_lists'),
           db.raw('MAX(health_results.checked_at) as latest_checked_at')
         )
@@ -190,6 +177,9 @@ export default class DashboardController {
         .select(
           'health_results.id',
           'health_results.checked_at',
+          ...(runtimeResolutionSupported
+            ? ['health_results.resolved_at', 'health_results.resolved_by_run_id']
+            : [db.raw('NULL as resolved_at'), db.raw('NULL as resolved_by_run_id')]),
           'health_results.error_message',
           'proxy_entries.id as proxy_entry_id',
           'proxy_entries.proxy_list_id',
@@ -202,6 +192,37 @@ export default class DashboardController {
         )
         .orderBy('health_results.checked_at', 'desc')
         .limit(6),
+      db
+        .from('health_check_runs')
+        .where('team_id', team.id)
+        .if(selectedPool !== null, (query) => query.where('proxy_list_id', selectedPool!.id))
+        .where('started_at', '>=', last24h.toSQL()!)
+        .whereRaw(`COALESCE(meta->>'trigger', source_type) = ?`, ['runtime_auto_recheck'])
+        .count('* as total')
+        .select(
+          db.raw(`SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count`),
+          db.raw(`SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count`),
+          db.raw(`SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running_count`),
+          db.raw(`
+            SUM(
+              CASE
+                WHEN COALESCE(NULLIF(meta->>'retryAttempt', '')::int, 1) > 1
+                THEN 1 ELSE 0
+              END
+            ) as retried_count
+          `),
+          db.raw(`
+            SUM(
+              CASE
+                WHEN COALESCE(NULLIF(meta->>'retryAttempt', '')::int, 1) > 1
+                  AND healthy_count > 0
+                THEN 1 ELSE 0
+              END
+            ) as retry_recovered_count
+          `),
+          db.raw('MAX(updated_at) as latest_updated_at')
+        )
+        .first(),
     ])
 
     const enabledScrapers = scraperSources.filter((source) => source.isEnabled)
@@ -219,6 +240,8 @@ export default class DashboardController {
       usageRequests24h > 0 ? Math.round((usageSuccessful24h / usageRequests24h) * 100) : 0
     const runtimeQuarantine = {
       total24h: Number(runtimeQuarantineSummaryRow?.total ?? 0),
+      active24h: Number(runtimeQuarantineSummaryRow?.active_count ?? 0),
+      resolved24h: Number(runtimeQuarantineSummaryRow?.resolved_count ?? 0),
       timeout24h: Number(runtimeQuarantineSummaryRow?.timeout_count ?? 0),
       unhealthy24h: Number(runtimeQuarantineSummaryRow?.unhealthy_count ?? 0),
       affectedLists24h: Number(runtimeQuarantineSummaryRow?.affected_lists ?? 0),
@@ -228,6 +251,20 @@ export default class DashboardController {
           : runtimeQuarantineSummaryRow?.latest_checked_at
             ? new Date(runtimeQuarantineSummaryRow.latest_checked_at).toISOString()
             : null,
+      autoRecheck: {
+        total24h: Number(runtimeAutoRecheckSummaryRow?.total ?? 0),
+        success24h: Number(runtimeAutoRecheckSummaryRow?.success_count ?? 0),
+        error24h: Number(runtimeAutoRecheckSummaryRow?.error_count ?? 0),
+        running24h: Number(runtimeAutoRecheckSummaryRow?.running_count ?? 0),
+        retried24h: Number(runtimeAutoRecheckSummaryRow?.retried_count ?? 0),
+        recoveredOnRetry24h: Number(runtimeAutoRecheckSummaryRow?.retry_recovered_count ?? 0),
+        latestAt:
+          typeof runtimeAutoRecheckSummaryRow?.latest_updated_at === 'string'
+            ? runtimeAutoRecheckSummaryRow.latest_updated_at
+            : runtimeAutoRecheckSummaryRow?.latest_updated_at
+              ? new Date(runtimeAutoRecheckSummaryRow.latest_updated_at).toISOString()
+              : null,
+      },
       recent: recentRuntimeQuarantineRows.map((row: any) => ({
         id: Number(row.id),
         proxyEntryId: Number(row.proxy_entry_id),
@@ -237,8 +274,16 @@ export default class DashboardController {
         protocol: row.protocol,
         countryCode: row.country_code ?? null,
         status: this.runtimeFailureStatus(row.error_message, row.proxy_status),
+        resolution: row.resolved_at ? ('resolved' as const) : ('active' as const),
         checkedAt:
           typeof row.checked_at === 'string' ? row.checked_at : new Date(row.checked_at).toISOString(),
+        resolvedAt:
+          !row.resolved_at
+            ? null
+            : typeof row.resolved_at === 'string'
+              ? row.resolved_at
+              : new Date(row.resolved_at).toISOString(),
+        resolvedByRunId: row.resolved_by_run_id ? Number(row.resolved_by_run_id) : null,
         errorMessage:
           typeof row.error_message === 'string'
             ? row.error_message.replace(/^\[runtime\]\s*/i, '')
@@ -404,13 +449,38 @@ export default class DashboardController {
         href: '/app/scraper',
       })
     }
-    if (runtimeQuarantine.total24h > 0) {
+    if (!runtimeResolutionSupported) {
       alerts.push({
-        title: `${runtimeQuarantine.total24h} proxy auto-quarantine oleh runtime dalam 24 jam`,
-        detail: `${runtimeQuarantine.timeout24h} timeout · ${runtimeQuarantine.unhealthy24h} unhealthy di ${runtimeQuarantine.affectedLists24h} pool`,
-        tone:
-          runtimeQuarantine.timeout24h > 0 || runtimeQuarantine.total24h >= 5 ? 'critical' : 'warning',
+        title: 'Migration runtime quarantine resolution belum dijalankan',
+        detail:
+          'Dashboard tetap berjalan dalam mode kompatibilitas, tetapi count resolved dan audit resolved-by-run belum aktif sampai migration health_results diterapkan.',
+        tone: 'warning',
         href: '/app/runtime/quarantine',
+      })
+    }
+    if (runtimeQuarantine.active24h > 0) {
+      alerts.push({
+        title: `${runtimeQuarantine.active24h} proxy masih aktif di runtime quarantine`,
+        detail: `${runtimeQuarantine.timeout24h} timeout · ${runtimeQuarantine.unhealthy24h} unhealthy · ${runtimeQuarantine.resolved24h} resolved dalam 24 jam`,
+        tone:
+          runtimeQuarantine.timeout24h > 0 || runtimeQuarantine.active24h >= 5 ? 'critical' : 'warning',
+        href: '/app/runtime/quarantine',
+      })
+    } else if (runtimeResolutionSupported && runtimeQuarantine.resolved24h > 0) {
+      alerts.push({
+        title: `${runtimeQuarantine.resolved24h} runtime quarantine sudah auto-resolved`,
+        detail: 'Recheck runtime berhasil menormalkan proxy yang sempat di-quarantine dalam 24 jam terakhir.',
+        tone: 'info',
+        href: '/app/runtime/quarantine?resolution=resolved',
+      })
+    }
+    if (runtimeQuarantine.autoRecheck.error24h > 0) {
+      alerts.push({
+        title: `${runtimeQuarantine.autoRecheck.error24h} runtime auto recheck gagal`,
+        detail:
+          'Periksa health-check logs untuk melihat run auto recheck yang gagal publish atau gagal validasi runtime quarantine.',
+        tone: 'warning',
+        href: '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck',
       })
     }
 
@@ -468,6 +538,8 @@ export default class DashboardController {
     const perPage = [10, 25, 50, 100].includes(requestedPerPage) ? requestedPerPage : 10
     const status =
       qs.status === 'timeout' || qs.status === 'unhealthy' ? String(qs.status) : null
+    const resolution =
+      qs.resolution === 'resolved' || qs.resolution === 'all' ? String(qs.resolution) : 'active'
     const search = qs.search ? String(qs.search).trim() : null
     const requestedListId = qs.listId ? Number(qs.listId) : null
     const requestedProxyEntryId = qs.proxyEntryId ? Number(qs.proxyEntryId) : null
@@ -476,11 +548,13 @@ export default class DashboardController {
       .where('team_id', team.id)
       .orderBy('name', 'asc')
 
+    const runtimeResolutionSupported = await this.hasRuntimeResolutionColumns()
+
     const selectedList = requestedListId
       ? (allProxyLists.find((list) => list.id === requestedListId) ?? null)
       : null
 
-    const buildQuery = () => {
+    const buildQuery = (applyResolution = true) => {
       const query = db
         .from('health_results')
         .innerJoin('proxy_entries', 'proxy_entries.id', 'health_results.proxy_entry_id')
@@ -511,6 +585,18 @@ export default class DashboardController {
         })
       }
 
+      if (applyResolution) {
+        if (!runtimeResolutionSupported) {
+          if (resolution === 'resolved') {
+            query.whereRaw('1 = 0')
+          }
+        } else if (resolution === 'resolved') {
+          query.whereNotNull('health_results.resolved_at')
+        } else if (resolution !== 'all') {
+          query.whereNull('health_results.resolved_at')
+        }
+      }
+
       return query
     }
 
@@ -522,6 +608,9 @@ export default class DashboardController {
       .select(
         'health_results.id',
         'health_results.checked_at',
+        ...(runtimeResolutionSupported
+          ? ['health_results.resolved_at', 'health_results.resolved_by_run_id']
+          : [db.raw('NULL as resolved_at'), db.raw('NULL as resolved_by_run_id')]),
         'health_results.error_message',
         'proxy_entries.id as proxy_entry_id',
         'proxy_entries.proxy_list_id',
@@ -536,10 +625,11 @@ export default class DashboardController {
       .offset((page - 1) * perPage)
       .limit(perPage)
 
-    const summaryRow = await buildQuery()
+    const summaryRow = await buildQuery(false)
       .where('health_results.checked_at', '>=', last24h)
       .count('* as total')
       .select(
+        ...this.runtimeSummarySelects(runtimeResolutionSupported),
         db.raw(`
           SUM(
             CASE
@@ -571,6 +661,8 @@ export default class DashboardController {
       },
       summary: {
         total24h: Number(summaryRow?.total ?? 0),
+        active24h: Number(summaryRow?.active_count ?? 0),
+        resolved24h: Number(summaryRow?.resolved_count ?? 0),
         timeout24h: Number(summaryRow?.timeout_count ?? 0),
         unhealthy24h: Number(summaryRow?.unhealthy_count ?? 0),
         affectedLists24h: Number(summaryRow?.affected_lists ?? 0),
@@ -582,7 +674,8 @@ export default class DashboardController {
               : null,
       },
       filters: {
-        status: (status ?? 'timeout') as 'timeout' | 'unhealthy',
+        status: status as 'timeout' | 'unhealthy' | null,
+        resolution: resolution as 'active' | 'resolved' | 'all',
         search,
         listId: selectedList?.id ?? null,
         listName: selectedList?.name ?? null,
@@ -650,13 +743,31 @@ export default class DashboardController {
     const meta = ((run.meta ?? {}) as Record<string, unknown>) || {}
     const trigger = typeof meta.trigger === 'string' ? meta.trigger : run.sourceType
     const listName = typeof meta.listName === 'string' ? meta.listName : null
+    const retryAttempt =
+      typeof meta.retryAttempt === 'number'
+        ? meta.retryAttempt
+        : Number(meta.retryAttempt ?? (trigger === 'runtime_auto_recheck' ? 1 : 0)) || 0
+    const retryMax =
+      typeof meta.retryMax === 'number' ? meta.retryMax : Number(meta.retryMax ?? retryAttempt) || 0
     const title =
       trigger === 'import_auto_check' || trigger === 'scraper_auto_check'
         ? 'Auto health check'
+        : trigger === 'runtime_auto_recheck'
+          ? 'Runtime auto recheck'
+        : trigger === 'runtime_quarantine_recheck'
+          ? 'Runtime quarantine recheck'
         : trigger === 'manual_recheck'
           ? 'Proxy list recheck'
           : 'Manual health check'
-    const detail = [listName, run.mode.toUpperCase()].filter(Boolean).join(' | ')
+    const detail = [
+      listName,
+      run.mode.toUpperCase(),
+      trigger === 'runtime_auto_recheck' && retryAttempt > 0 && retryMax > 0
+        ? `Attempt ${retryAttempt}/${retryMax}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' | ')
     const progressLabel = `${run.checkedCount}/${run.totalInputs} checked | ${run.healthyCount} healthy | ${run.unhealthyCount} unhealthy | ${run.timeoutCount} timeout`
 
     return {
@@ -672,7 +783,11 @@ export default class DashboardController {
       href:
         trigger === 'tools_manual'
           ? '/app/tools/logs'
-          : '/app/tools/logs?sourceType=proxy_list_bulk',
+          : trigger === 'runtime_auto_recheck'
+            ? '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_auto_recheck'
+          : trigger === 'runtime_quarantine_recheck'
+            ? '/app/tools/logs?sourceType=proxy_list_bulk&trigger=runtime_quarantine_recheck'
+            : '/app/tools/logs?sourceType=proxy_list_bulk',
       startedAt: run.startedAt?.toISO() ?? null,
       finishedAt: run.finishedAt?.toISO() ?? null,
       updatedAt: run.updatedAt?.toISO() ?? null,
@@ -718,6 +833,46 @@ export default class DashboardController {
     return Math.max(0, Math.min(100, Math.round((current / total) * 100)))
   }
 
+  private hasRuntimeResolutionColumns() {
+    if (!this.runtimeResolutionColumnsPromise) {
+      this.runtimeResolutionColumnsPromise = db
+        .from('information_schema.columns')
+        .where('table_schema', 'public')
+        .where('table_name', 'health_results')
+        .whereIn('column_name', ['resolved_at', 'resolved_by_run_id'])
+        .count('* as total')
+        .then((rows: any[]) => Number(rows[0]?.total ?? 0) >= 2)
+        .catch(() => false)
+    }
+
+    return this.runtimeResolutionColumnsPromise
+  }
+
+  private runtimeSummarySelects(runtimeResolutionSupported: boolean) {
+    if (!runtimeResolutionSupported) {
+      return [db.raw('COUNT(*) as active_count'), db.raw('0 as resolved_count')]
+    }
+
+    return [
+      db.raw(`
+        SUM(
+          CASE
+            WHEN health_results.resolved_at IS NULL
+            THEN 1 ELSE 0
+          END
+        ) as active_count
+      `),
+      db.raw(`
+        SUM(
+          CASE
+            WHEN health_results.resolved_at IS NOT NULL
+            THEN 1 ELSE 0
+          END
+        ) as resolved_count
+      `),
+    ]
+  }
+
   private runtimeTimeoutCondition() {
     return `LOWER(COALESCE(health_results.error_message, '')) LIKE '%timeout%' OR LOWER(COALESCE(health_results.error_message, '')) LIKE '%deadline%'`
   }
@@ -732,8 +887,16 @@ export default class DashboardController {
       protocol: row.protocol,
       countryCode: row.country_code ?? null,
       status: this.runtimeFailureStatus(row.error_message, row.proxy_status),
+      resolution: row.resolved_at ? ('resolved' as const) : ('active' as const),
       checkedAt:
         typeof row.checked_at === 'string' ? row.checked_at : new Date(row.checked_at).toISOString(),
+      resolvedAt:
+        !row.resolved_at
+          ? null
+          : typeof row.resolved_at === 'string'
+            ? row.resolved_at
+            : new Date(row.resolved_at).toISOString(),
+      resolvedByRunId: row.resolved_by_run_id ? Number(row.resolved_by_run_id) : null,
       errorMessage:
         typeof row.error_message === 'string'
           ? row.error_message.replace(/^\[runtime\]\s*/i, '')

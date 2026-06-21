@@ -6,6 +6,7 @@
 .env
 .env.local
 .env.*.local
+.env.production
 infra/traefik/acme.json
 
 # Node
@@ -63,3 +64,4 @@ temp/
 docs/*
 .claude/*
 .trae/*
+environtments/*

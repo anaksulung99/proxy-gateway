@@ -3,6 +3,7 @@ import { signupValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import { sendVerificationEmail } from '#services/auth_mail_service'
 import Role from '#models/role'
+import env from '#start/env'
 
 export default class NewAccountController {
   async create({ inertia }: HttpContext) {
@@ -10,6 +11,12 @@ export default class NewAccountController {
   }
 
   async store({ request, response, auth, session }: HttpContext) {
+    const enableRegistration = env.get('ENABLE_REGISTRATION', false)
+    if (!enableRegistration) {
+      session.flash('error', 'Registration is disabled.')
+      return response.redirect().back()
+    }
+
     const payload = await request.validateUsing(signupValidator)
     const defaultRole = await Role.firstOrCreate(
       { name: 'user' },

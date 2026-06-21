@@ -19,7 +19,10 @@ const props = defineProps<{
     protocol: string
     countryCode: string | null
     status: 'timeout' | 'unhealthy'
+    resolution: 'active' | 'resolved'
     checkedAt: string
+    resolvedAt: string | null
+    resolvedByRunId: number | null
     errorMessage: string
   }>
   meta: {
@@ -30,6 +33,8 @@ const props = defineProps<{
   }
   summary: {
     total24h: number
+    active24h: number
+    resolved24h: number
     timeout24h: number
     unhealthy24h: number
     affectedLists24h: number
@@ -37,6 +42,7 @@ const props = defineProps<{
   }
   filters: {
     status: 'timeout' | 'unhealthy' | null
+    resolution: 'active' | 'resolved' | 'all'
     search: string | null
     listId: number | null
     listName: string | null
@@ -51,12 +57,17 @@ usePolling(['rows', 'meta', 'summary'], { interval: 10000 })
 
 const filters = reactive({
   status: props.filters.status ?? ANY,
+  resolution: props.filters.resolution ?? 'active',
   search: props.filters.search ?? '',
   listId: props.filters.listId ? String(props.filters.listId) : ANY,
 })
 
 const hasFilters = computed(
-  () => filters.status !== ANY || filters.listId !== ANY || filters.search.trim().length > 0
+  () =>
+    filters.status !== ANY ||
+    filters.resolution !== 'active' ||
+    filters.listId !== ANY ||
+    filters.search.trim().length > 0
 )
 const firstRow = computed(() =>
   props.meta.total === 0 ? 0 : (props.meta.currentPage - 1) * props.meta.perPage + 1
@@ -73,6 +84,7 @@ function fmtDate(value: string | null) {
 function buildQuery(extra: Record<string, string | number> = {}) {
   const query: Record<string, string | number> = {}
   if (filters.status !== ANY) query.status = filters.status
+  if (filters.resolution !== 'active') query.resolution = filters.resolution
   if (filters.listId !== ANY) query.listId = Number(filters.listId)
   if (filters.search.trim()) query.search = filters.search.trim()
   return { ...query, ...extra }
@@ -87,6 +99,7 @@ function applyFilters() {
 
 function clearFilters() {
   filters.status = ANY
+  filters.resolution = 'active'
   filters.listId = ANY
   filters.search = ''
   applyFilters()
@@ -117,7 +130,12 @@ function runEntryRecheck(row: (typeof props.rows)[number]) {
   )
   router.post(
     '/app/proxy-entries/bulk',
-    { listId: row.proxyListId, action: 'recheck', ids: [row.proxyEntryId] },
+    {
+      listId: row.proxyListId,
+      action: 'recheck',
+      ids: [row.proxyEntryId],
+      trigger: 'runtime_quarantine_recheck',
+    },
     {
       preserveScroll: true,
       onFinish: () => {
@@ -160,13 +178,27 @@ function deleteEntry(row: (typeof props.rows)[number]) {
         </Link>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MonitoringStatCard
           title="Events 24h"
           :value="summary.total24h"
-          detail="Runtime failure yang auto-menurunkan health proxy"
+          detail="Semua event runtime quarantine dalam 24 jam terakhir"
           icon="lucide:shield-alert"
           tone="warning"
+        />
+        <MonitoringStatCard
+          title="Active 24h"
+          :value="summary.active24h"
+          detail="Event yang masih belum resolved"
+          icon="lucide:siren"
+          tone="warning"
+        />
+        <MonitoringStatCard
+          title="Resolved 24h"
+          :value="summary.resolved24h"
+          detail="Event yang sudah sehat lagi via recheck"
+          icon="lucide:shield-check"
+          tone="info"
         />
         <MonitoringStatCard
           title="Timeout 24h"
@@ -199,7 +231,7 @@ function deleteEntry(row: (typeof props.rows)[number]) {
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div class="grid gap-1">
               <Label class="text-xs">Status</Label>
               <Select v-model="filters.status">
@@ -208,6 +240,18 @@ function deleteEntry(row: (typeof props.rows)[number]) {
                   <SelectItem :value="ANY">Semua status</SelectItem>
                   <SelectItem value="timeout">Timeout</SelectItem>
                   <SelectItem value="unhealthy">Unhealthy</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="grid gap-1">
+              <Label class="text-xs">Resolution</Label>
+              <Select v-model="filters.resolution">
+                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent class="w-full">
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -297,16 +341,28 @@ function deleteEntry(row: (typeof props.rows)[number]) {
                   <Badge :variant="row.status === 'timeout' ? 'secondary' : 'destructive'">
                     {{ row.status }}
                   </Badge>
+                  <div class="mt-1">
+                    <Badge variant="outline">
+                      {{ row.resolution }}
+                    </Badge>
+                  </div>
                 </TableCell>
                 <TableCell class="max-w-105 whitespace-normal text-sm text-muted-foreground">
                   {{ row.errorMessage }}
                 </TableCell>
                 <TableCell class="text-xs text-muted-foreground">
-                  {{ fmtDate(row.checkedAt) }}
+                  <div>{{ fmtDate(row.checkedAt) }}</div>
+                  <div v-if="row.resolvedAt">
+                    Resolved: {{ fmtDate(row.resolvedAt) }}
+                  </div>
+                  <div v-if="row.resolvedByRunId">
+                    Run #{{ row.resolvedByRunId }}
+                  </div>
                 </TableCell>
                 <TableCell class="text-right">
                   <div class="flex justify-end gap-2">
                     <Button
+                      v-if="row.resolution === 'active'"
                       variant="outline"
                       size="sm"
                       :disabled="actionKey === `runtime-quarantine:recheck:${row.proxyEntryId}`"

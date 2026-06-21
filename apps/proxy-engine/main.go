@@ -18,6 +18,7 @@ import (
 	"github.com/proxy-system/proxy-engine/pkg/config"
 	"github.com/proxy-system/proxy-engine/pkg/logger"
 	"github.com/proxy-system/proxy-engine/pkg/postgres"
+	"github.com/proxy-system/proxy-engine/pkg/rabbitmq"
 	"github.com/proxy-system/proxy-engine/pkg/redis"
 )
 
@@ -37,6 +38,16 @@ func main() {
 		log.Fatal().Err(err).Msg("Redis connection failed")
 	}
 
+	var rmq *rabbitmq.Client
+	if cfg.RuntimeAutoRecheckEnabled {
+		rmq, err = rabbitmq.NewClient(cfg.RabbitMQ)
+		if err != nil {
+			log.Warn().Err(err).Msg("Runtime auto recheck RabbitMQ connection failed; auto recheck disabled")
+		} else {
+			defer rmq.Close()
+		}
+	}
+
 	repo := pool.NewRepository(pg, 10*time.Second)
 	sel := session.NewSelector(rdb)
 	usageSink := usage.NewSink(pg, log)
@@ -46,8 +57,13 @@ func main() {
 		pg,
 		rdb,
 		repo,
+		rmq,
 		cfg.RuntimeFailureThreshold,
 		time.Duration(cfg.RuntimeFailureWindowSec)*time.Second,
+		cfg.RuntimeAutoRecheckEnabled && rmq != nil,
+		time.Duration(cfg.RuntimeAutoRecheckDelaySec)*time.Second,
+		cfg.RuntimeAutoRecheckMax,
+		time.Duration(cfg.RuntimeAutoRetryDelaySec)*time.Second,
 		log,
 	)
 	gw := gateway.New(repo, sel, cfg.GatewaySecret, keyValidator, quotaTracker, usageSink, runtimeTracker, log)
