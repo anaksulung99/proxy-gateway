@@ -2,7 +2,17 @@
 import type { routes } from './index.ts'
 
 export interface ApiDefinition {
-  home: typeof routes['home']
+  home: {
+    index: typeof routes['home.index']
+    about: typeof routes['home.about']
+    contact: typeof routes['home.contact'] & {
+      store: typeof routes['home.contact.store']
+    }
+    pricing: typeof routes['home.pricing']
+    terms: typeof routes['home.terms']
+    privacy: typeof routes['home.privacy']
+    faqs: typeof routes['home.faqs']
+  }
   newAccount: {
     create: typeof routes['new_account.create']
     store: typeof routes['new_account.store']
@@ -72,5 +82,17 @@ export interface ApiDefinition {
     revokePost: typeof routes['api-keys.revokePost']
     quota: typeof routes['api-keys.quota']
     teamQuota: typeof routes['api-keys.teamQuota']
+  }
+  teams: {
+    index: typeof routes['teams.index']
+    store: typeof routes['teams.store']
+    update: typeof routes['teams.update']
+    destroy: typeof routes['teams.destroy']
+    deleteManyPost: typeof routes['teams.deleteManyPost']
+  }
+  profile: {
+    index: typeof routes['profile.index']
+    update: typeof routes['profile.update']
+    password: typeof routes['profile.password']
   }
 }

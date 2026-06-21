@@ -16,9 +16,18 @@ declare module '@adonisjs/inertia/types' {
     'auth/signup': ExtractProps<(typeof import('../../inertia/pages/auth/signup.vue'))['default']>
     'auth/verify-email': ExtractProps<(typeof import('../../inertia/pages/auth/verify-email.vue'))['default']>
     'dashboard/index': ExtractProps<(typeof import('../../inertia/pages/dashboard/index.vue'))['default']>
+    'dashboard/runtime_quarantine': ExtractProps<(typeof import('../../inertia/pages/dashboard/runtime_quarantine.vue'))['default']>
     'errors/not_found': ExtractProps<(typeof import('../../inertia/pages/errors/not_found.vue'))['default']>
     'errors/server_error': ExtractProps<(typeof import('../../inertia/pages/errors/server_error.vue'))['default']>
     'home': ExtractProps<(typeof import('../../inertia/pages/home.vue'))['default']>
+    'home/about': ExtractProps<(typeof import('../../inertia/pages/home/about.vue'))['default']>
+    'home/contact': ExtractProps<(typeof import('../../inertia/pages/home/contact.vue'))['default']>
+    'home/faqs': ExtractProps<(typeof import('../../inertia/pages/home/faqs.vue'))['default']>
+    'home/index': ExtractProps<(typeof import('../../inertia/pages/home/index.vue'))['default']>
+    'home/pricing': ExtractProps<(typeof import('../../inertia/pages/home/pricing.vue'))['default']>
+    'home/privacy': ExtractProps<(typeof import('../../inertia/pages/home/privacy.vue'))['default']>
+    'home/terms': ExtractProps<(typeof import('../../inertia/pages/home/terms.vue'))['default']>
+    'profile/index': ExtractProps<(typeof import('../../inertia/pages/profile/index.vue'))['default']>
     'proxy-lists/import': ExtractProps<(typeof import('../../inertia/pages/proxy-lists/import.vue'))['default']>
     'proxy-lists/index': ExtractProps<(typeof import('../../inertia/pages/proxy-lists/index.vue'))['default']>
     'proxy-lists/show': ExtractProps<(typeof import('../../inertia/pages/proxy-lists/show.vue'))['default']>
@@ -26,8 +35,8 @@ declare module '@adonisjs/inertia/types' {
     'scraper/logs': ExtractProps<(typeof import('../../inertia/pages/scraper/logs.vue'))['default']>
     'settings/api_keys': ExtractProps<(typeof import('../../inertia/pages/settings/api_keys.vue'))['default']>
     'settings/team': ExtractProps<(typeof import('../../inertia/pages/settings/team.vue'))['default']>
+    'teams/index': ExtractProps<(typeof import('../../inertia/pages/teams/index.vue'))['default']>
     'tools/index': ExtractProps<(typeof import('../../inertia/pages/tools/index.vue'))['default']>
     'tools/show': ExtractProps<(typeof import('../../inertia/pages/tools/show.vue'))['default']>
-    'dashboard/runtime_quarantine': ExtractProps<(typeof import('../../inertia/pages/dashboard/runtime_quarantine.vue'))['default']>
   }
 }

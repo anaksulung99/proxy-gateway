@@ -25,6 +25,13 @@ export const http = defineConfig({
   useAsyncLocalStorage: false,
 
   /**
+   * Trust X-Forwarded-* headers from the reverse proxy (nginx / Traefik) so the
+   * app sees the real client IP and the HTTPS scheme. Safe because the web
+   * container is only reached through the reverse proxy in production.
+   */
+  trustProxy: () => true,
+
+  /**
    * Redirect configuration controls the behavior of
    * response.redirect().back() and query string forwarding.
    */

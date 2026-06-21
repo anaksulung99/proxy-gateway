@@ -1,14 +1,15 @@
 <script lang="ts" setup>
-import type { Data } from '@generated/data'
-import { router, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { useSidebar } from '@/components/ui/sidebar'
 import { LogOut, ChevronsUpDown, KeyRoundIcon } from '@lucide/vue'
+import { useAuthStore } from '~/stores/auth'
 
-const page = usePage<Data.SharedProps>()
 const { isMobile } = useSidebar()
+const auth = useAuthStore()
 
-const user = computed(() => page.props.user)
+const user = computed(() => auth.user)
 const displayName = computed(() => user.value?.fullName || user.value?.email || 'User')
 const displayInitials = computed(() => displayName.value.slice(0, 2).toUpperCase())
 const displayEmail = computed(() => user.value?.email || 'Email')
@@ -61,6 +62,12 @@ function handleSignOut() {
           <DropdownMenuSeparator />
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
+            <Link href="/app/profile">
+              <DropdownMenuItem>
+                <KeyRoundIcon />
+                Account
+              </DropdownMenuItem>
+            </Link>
             <Link href="/app/settings/api-keys">
               <DropdownMenuItem>
                 <KeyRoundIcon />

@@ -11,7 +11,16 @@ import { middleware } from '#start/kernel'
 import { controllers } from '#generated/controllers'
 import router from '@adonisjs/core/services/router'
 
-router.on('/').renderInertia('home', {}).as('home')
+router.group(() => {
+  router.get('', [controllers.Home, 'index']).as('home.index')
+  router.get('about', [controllers.Home, 'about']).as('home.about')
+  router.get('contact', [controllers.Home, 'contact']).as('home.contact')
+  router.get('pricing', [controllers.Home, 'pricing']).as('home.pricing')
+  router.get('terms', [controllers.Home, 'terms']).as('home.terms')
+  router.get('privacy', [controllers.Home, 'privacy']).as('home.privacy')
+  router.get('faqs', [controllers.Home, 'faqs']).as('home.faqs')
+  router.post('contact', [controllers.Home, 'storeContact']).as('home.contact.store')
+})
 
 router
   .group(() => {
@@ -128,6 +137,22 @@ router
     router
       .post('settings/team-quota', [controllers.ApiKeys, 'updateTeamQuota'])
       .as('api-keys.teamQuota')
+
+    router
+      .group(() => {
+        router.get('teams', [controllers.Admin, 'index']).as('teams.index')
+        router.post('teams', [controllers.Admin, 'store']).as('teams.store')
+        router.patch('teams/:id', [controllers.Admin, 'update']).as('teams.update')
+        router.delete('teams/:id/delete', [controllers.Admin, 'destroy']).as('teams.destroy')
+        router.delete('teams/bulk', [controllers.Admin, 'deleteMany']).as('teams.deleteManyPost')
+      })
+      .use([middleware.admin()])
+
+    router.group(() => {
+      router.get('profile', [controllers.Teams, 'index']).as('profile.index')
+      router.patch('profile/update', [controllers.Teams, 'update']).as('profile.update')
+      router.patch('profile/password', [controllers.Teams, 'password']).as('profile.password')
+    })
   })
   .prefix('app')
   .use([middleware.auth(), middleware.verified(), middleware.team()])

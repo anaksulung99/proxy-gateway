@@ -1,11 +1,16 @@
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useNotificationsStore } from '~/stores/notifications'
 
-export const useRealtimeProgress = (intervalMs = 4000) => {
+export const useRealtimeProgress = (
+  enabled: MaybeRefOrGetter<boolean> = true,
+  intervalMs = 4000
+) => {
   const notifications = useNotificationsStore()
   let timer: number | null = null
+  let isMounted = false
 
   const tick = () => {
+    if (!toValue(enabled)) return
     if (typeof document !== 'undefined' && document.hidden) return
     void notifications.refreshTasks()
   }
@@ -22,7 +27,18 @@ export const useRealtimeProgress = (intervalMs = 4000) => {
     timer = null
   }
 
-  onMounted(start)
+  const sync = () => {
+    if (!isMounted) return
+    if (toValue(enabled)) start()
+    else stop()
+  }
+
+  watch(() => toValue(enabled), sync)
+
+  onMounted(() => {
+    isMounted = true
+    sync()
+  })
   onBeforeUnmount(stop)
 
   return {

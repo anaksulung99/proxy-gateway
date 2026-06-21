@@ -1,0 +1,17 @@
+# Build context = repo root (used by the web image). Keep it lean.
+.git
+.gitignore
+**/node_modules
+**/tmp
+**/*.exe
+**/build
+apps/web/.env
+apps/web/.env.*
+# Other apps build in their own contexts — not needed for the web image
+apps/proxy-engine
+apps/scraper
+apps/health-checker
+docs
+*.md
+.env
+.env.*

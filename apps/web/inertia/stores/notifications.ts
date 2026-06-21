@@ -62,6 +62,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const seenQuarantineEvents = ref<Record<number, true>>({})
   const localTaskKeys = ref<Record<string, true>>({})
   const isFetching = ref(false)
+  const pollingBlocked = ref(false)
 
   const activeTasks = computed(() =>
     Object.values(tasks.value).filter((task) => task.status === 'running')
@@ -137,8 +138,19 @@ export const useNotificationsStore = defineStore('notifications', () => {
     recentQuarantineEvents.value = next
   }
 
+  function clearRemoteState() {
+    for (const previous of Object.values(tasks.value)) {
+      if (previous.status === 'running') {
+        toast.dismiss(previous.key)
+      }
+    }
+
+    tasks.value = {}
+    recentQuarantineEvents.value = {}
+  }
+
   async function refreshTasks() {
-    if (isFetching.value || typeof window === 'undefined') return
+    if (pollingBlocked.value || isFetching.value || typeof window === 'undefined') return
 
     isFetching.value = true
     try {
@@ -148,11 +160,20 @@ export const useNotificationsStore = defineStore('notifications', () => {
         credentials: 'same-origin',
       })
 
-      if (!response.ok) throw new Error(`runtime tasks responded ${response.status}`)
+      if (response.status === 401 || response.status === 403) {
+        pollingBlocked.value = true
+        clearRemoteState()
+        return
+      }
+
+      const contentType = response.headers.get('content-type') ?? ''
+      if (!response.ok || !contentType.includes('application/json')) return
+
       const payload = (await response.json()) as {
         tasks?: NotificationTask[]
         quarantineEvents?: NotificationRuntimeQuarantineEvent[]
       }
+      pollingBlocked.value = false
       syncTasks(payload.tasks ?? [])
       syncQuarantineEvents(payload.quarantineEvents ?? [])
     } catch {
@@ -167,10 +188,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     recentQuarantineEvents,
     activeTasks,
     isFetching,
+    pollingBlocked,
     startLocalTask,
     finishLocalTask,
     syncTasks,
     syncQuarantineEvents,
+    clearRemoteState,
     refreshTasks,
   }
 })

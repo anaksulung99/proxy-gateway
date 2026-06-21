@@ -56,20 +56,20 @@ const statusOptions = [
 <template>
   <Dialog v-model:open="openDialog">
     <DialogTrigger as-child>
-      <AppTooltip content="Recheck list" side="bottom">
+      <AppTooltip content="Recheck Proxy List" side="bottom">
         <Button
           size="sm"
           class="bg-emerald-600 hover:bg-emerald-700 text-white"
           @click="openDialog = true"
         >
-          <Icon icon="material-symbols:health-and-safety-rounded" class="size-4" />
-          <span class="hidden md:block">Recheck list</span>
+          <Icon icon="material-symbols:check-circle-unread-outline" class="size-4" />
+          <span class="hidden md:block">ReCheck</span>
         </Button>
       </AppTooltip>
     </DialogTrigger>
     <DialogContent class="sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle> Recheck list</DialogTitle>
+        <DialogTitle> Recheck Proxy List</DialogTitle>
         <DialogDescription>
           Recheck all entries with the selected status in this list.
         </DialogDescription>

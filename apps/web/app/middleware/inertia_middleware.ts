@@ -3,6 +3,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 import UserTransformer from '#transformers/user_transformer'
 import BaseInertiaMiddleware from '@adonisjs/inertia/inertia_middleware'
 import TeamTransformer from '#transformers/team_transformer'
+import i18nManager from '@adonisjs/i18n/services/main'
 
 export default class InertiaMiddleware extends BaseInertiaMiddleware {
   share(ctx: HttpContext) {
@@ -41,6 +42,8 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       user: ctx.inertia.always(auth?.user ? UserTransformer.transform(auth.user) : undefined),
       // title: ctx.inertia.always(ctx.title),
       team: ctx.inertia.always(ctx.team ? TeamTransformer.transform(ctx.team) : undefined),
+      locale: ctx.inertia.always(ctx.i18n.locale),
+      translations: ctx.inertia.always(i18nManager.getTranslationsFor(ctx.i18n.locale)),
     }
   }
 

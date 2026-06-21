@@ -1,13 +1,14 @@
 <script lang="ts" setup>
-import type { Data } from '@generated/data'
+import { computed } from 'vue'
 import { useSidebar, type SidebarProps } from '@/components/ui/sidebar'
+import { useAuthStore } from '~/stores/auth'
 const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
 })
 
-const page = usePage<Data.SharedProps>()
-const userRole = computed<UserRole>(() => page.props.user?.role?.name ?? 'user')
-const isAdmin = computed(() => page.props.user?.isAdmin === true)
+const auth = useAuthStore()
+const userRole = computed<UserRole>(() => auth.user?.role?.name ?? 'user')
+const isAdmin = computed(() => auth.user?.isAdmin === true)
 
 const navMain: AppNavMain[] = [
   { title: 'Dashboard', href: '/app', icon: 'lucide:layout-dashboard', exact: true },
@@ -28,8 +29,8 @@ const navMainItems = computed(() => {
 
   if (isAdmin.value) {
     items.push({
-      title: 'Users',
-      href: '/app/users',
+      title: 'Teams',
+      href: '/app/teams',
       icon: 'material-symbols:group-outline',
       exact: false,
     })

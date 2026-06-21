@@ -6,11 +6,53 @@ import type { ApiDefinition } from './tree.d.ts'
 const placeholder: any = {}
 
 const routes = {
-  'home': {
+  'home.index': {
     methods: ["GET","HEAD"],
     pattern: '/',
     tokens: [{"old":"/","type":0,"val":"/","end":""}],
-    types: placeholder as Registry['home']['types'],
+    types: placeholder as Registry['home.index']['types'],
+  },
+  'home.about': {
+    methods: ["GET","HEAD"],
+    pattern: '/about',
+    tokens: [{"old":"/about","type":0,"val":"about","end":""}],
+    types: placeholder as Registry['home.about']['types'],
+  },
+  'home.contact': {
+    methods: ["GET","HEAD"],
+    pattern: '/contact',
+    tokens: [{"old":"/contact","type":0,"val":"contact","end":""}],
+    types: placeholder as Registry['home.contact']['types'],
+  },
+  'home.pricing': {
+    methods: ["GET","HEAD"],
+    pattern: '/pricing',
+    tokens: [{"old":"/pricing","type":0,"val":"pricing","end":""}],
+    types: placeholder as Registry['home.pricing']['types'],
+  },
+  'home.terms': {
+    methods: ["GET","HEAD"],
+    pattern: '/terms',
+    tokens: [{"old":"/terms","type":0,"val":"terms","end":""}],
+    types: placeholder as Registry['home.terms']['types'],
+  },
+  'home.privacy': {
+    methods: ["GET","HEAD"],
+    pattern: '/privacy',
+    tokens: [{"old":"/privacy","type":0,"val":"privacy","end":""}],
+    types: placeholder as Registry['home.privacy']['types'],
+  },
+  'home.faqs': {
+    methods: ["GET","HEAD"],
+    pattern: '/faqs',
+    tokens: [{"old":"/faqs","type":0,"val":"faqs","end":""}],
+    types: placeholder as Registry['home.faqs']['types'],
+  },
+  'home.contact.store': {
+    methods: ["POST"],
+    pattern: '/contact',
+    tokens: [{"old":"/contact","type":0,"val":"contact","end":""}],
+    types: placeholder as Registry['home.contact.store']['types'],
   },
   'new_account.create': {
     methods: ["GET","HEAD"],
@@ -305,6 +347,54 @@ const routes = {
     pattern: '/app/settings/team-quota',
     tokens: [{"old":"/app/settings/team-quota","type":0,"val":"app","end":""},{"old":"/app/settings/team-quota","type":0,"val":"settings","end":""},{"old":"/app/settings/team-quota","type":0,"val":"team-quota","end":""}],
     types: placeholder as Registry['api-keys.teamQuota']['types'],
+  },
+  'teams.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/teams',
+    tokens: [{"old":"/app/teams","type":0,"val":"app","end":""},{"old":"/app/teams","type":0,"val":"teams","end":""}],
+    types: placeholder as Registry['teams.index']['types'],
+  },
+  'teams.store': {
+    methods: ["POST"],
+    pattern: '/app/teams',
+    tokens: [{"old":"/app/teams","type":0,"val":"app","end":""},{"old":"/app/teams","type":0,"val":"teams","end":""}],
+    types: placeholder as Registry['teams.store']['types'],
+  },
+  'teams.update': {
+    methods: ["PATCH"],
+    pattern: '/app/teams/:id',
+    tokens: [{"old":"/app/teams/:id","type":0,"val":"app","end":""},{"old":"/app/teams/:id","type":0,"val":"teams","end":""},{"old":"/app/teams/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['teams.update']['types'],
+  },
+  'teams.destroy': {
+    methods: ["DELETE"],
+    pattern: '/app/teams/:id/delete',
+    tokens: [{"old":"/app/teams/:id/delete","type":0,"val":"app","end":""},{"old":"/app/teams/:id/delete","type":0,"val":"teams","end":""},{"old":"/app/teams/:id/delete","type":1,"val":"id","end":""},{"old":"/app/teams/:id/delete","type":0,"val":"delete","end":""}],
+    types: placeholder as Registry['teams.destroy']['types'],
+  },
+  'teams.deleteManyPost': {
+    methods: ["DELETE"],
+    pattern: '/app/teams/bulk',
+    tokens: [{"old":"/app/teams/bulk","type":0,"val":"app","end":""},{"old":"/app/teams/bulk","type":0,"val":"teams","end":""},{"old":"/app/teams/bulk","type":0,"val":"bulk","end":""}],
+    types: placeholder as Registry['teams.deleteManyPost']['types'],
+  },
+  'profile.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/app/profile',
+    tokens: [{"old":"/app/profile","type":0,"val":"app","end":""},{"old":"/app/profile","type":0,"val":"profile","end":""}],
+    types: placeholder as Registry['profile.index']['types'],
+  },
+  'profile.update': {
+    methods: ["PATCH"],
+    pattern: '/app/profile/update',
+    tokens: [{"old":"/app/profile/update","type":0,"val":"app","end":""},{"old":"/app/profile/update","type":0,"val":"profile","end":""},{"old":"/app/profile/update","type":0,"val":"update","end":""}],
+    types: placeholder as Registry['profile.update']['types'],
+  },
+  'profile.password': {
+    methods: ["PATCH"],
+    pattern: '/app/profile/password',
+    tokens: [{"old":"/app/profile/password","type":0,"val":"app","end":""},{"old":"/app/profile/password","type":0,"val":"profile","end":""},{"old":"/app/profile/password","type":0,"val":"password","end":""}],
+    types: placeholder as Registry['profile.password']['types'],
   },
 } as const satisfies Record<string, AdonisEndpoint>
 

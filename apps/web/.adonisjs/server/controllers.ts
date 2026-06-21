@@ -4,10 +4,12 @@
  */
 
 export const controllers = {
+  Admin: () => import('#controllers/admin_controller'),
   ApiKeys: () => import('#controllers/api_keys_controller'),
   Auth: () => import('#controllers/auth_controller'),
   Dashboard: () => import('#controllers/dashboard_controller'),
   HealthChecker: () => import('#controllers/health_checker_controller'),
+  Home: () => import('#controllers/home_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   ProxyEntries: () => import('#controllers/proxy_entries_controller'),
   ProxyLists: () => import('#controllers/proxy_lists_controller'),

@@ -4,6 +4,7 @@ import { Head, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { usePolling } from '~/composables/usePolling'
+import { useFlashStore } from '~/stores/flash'
 
 interface List {
   id: number
@@ -61,6 +62,7 @@ const props = defineProps<{
 }>()
 
 const showEdit = ref(false)
+const flashStore = useFlashStore()
 const page = usePage<{
   flash?: {
     importSummary?: {
@@ -76,7 +78,9 @@ const page = usePage<{
   }
 }>()
 
-const importSummary = computed(() => page.props.flash?.importSummary ?? null)
+const importSummary = computed(
+  () => flashStore.flash?.importSummary ?? page.props.flash?.importSummary ?? null
+)
 const healthyRate = computed(() =>
   props.stats.total > 0 ? Math.round((props.stats.healthy / props.stats.total) * 100) : 0
 )

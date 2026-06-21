@@ -46,16 +46,16 @@ const statusOptions = [
 <template>
   <Dialog v-model:open="openDialog">
     <DialogTrigger as-child>
-      <AppTooltip content="Recheck list" side="bottom">
+      <AppTooltip content="Clean up proxy list" side="bottom">
         <Button size="sm" variant="destructive" @click="openDialog = true">
           <Icon icon="hugeicons:clean" class="size-4" />
-          <span class="hidden md:block">Clean Up list</span>
+          <span class="hidden md:block">Clean Up</span>
         </Button>
       </AppTooltip>
     </DialogTrigger>
     <DialogContent class="sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle> Clean up list</DialogTitle>
+        <DialogTitle> Clean up Proxy List</DialogTitle>
         <DialogDescription>
           Clean up all entries with the selected status in this list.
         </DialogDescription>

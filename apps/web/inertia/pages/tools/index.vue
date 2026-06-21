@@ -4,6 +4,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
+import { useFlashStore } from '~/stores/flash'
 import { useNotificationsStore } from '~/stores/notifications'
 
 interface Result {
@@ -49,6 +50,7 @@ const props = defineProps<{
 }>()
 
 const { warning } = useGlobalAlert()
+const flashStore = useFlashStore()
 const notifications = useNotificationsStore()
 
 const form = useForm({
@@ -77,7 +79,9 @@ const page = usePage<{
   }
 }>()
 
-const runSummary = computed(() => page.props.flash?.healthCheckRunSummary ?? null)
+const runSummary = computed(
+  () => flashStore.flash?.healthCheckRunSummary ?? page.props.flash?.healthCheckRunSummary ?? null
+)
 const inputCount = computed(() => form.raw.split(/\r?\n/).filter((line) => line.trim()).length)
 const firstRow = computed(() =>
   props.meta.total === 0 ? 0 : (props.meta.currentPage - 1) * props.meta.perPage + 1

@@ -185,6 +185,7 @@ declare module 'vue' {
     InputOTPGroup: typeof import('./components/ui/input-otp/InputOTPGroup.vue')['default']
     InputOTPSeparator: typeof import('./components/ui/input-otp/InputOTPSeparator.vue')['default']
     InputOTPSlot: typeof import('./components/ui/input-otp/InputOTPSlot.vue')['default']
+    InviteTeam: typeof import('./components/team/InviteTeam.vue')['default']
     Item: typeof import('./components/ui/item/Item.vue')['default']
     ItemActions: typeof import('./components/ui/item/ItemActions.vue')['default']
     ItemContent: typeof import('./components/ui/item/ItemContent.vue')['default']
@@ -198,6 +199,7 @@ declare module 'vue' {
     Kbd: typeof import('./components/ui/kbd/Kbd.vue')['default']
     KbdGroup: typeof import('./components/ui/kbd/KbdGroup.vue')['default']
     Label: typeof import('./components/ui/label/Label.vue')['default']
+    LandingLayout: typeof import('./layouts/LandingLayout.vue')['default']
     MaxWidthWrapper: typeof import('./components/MaxWidthWrapper.vue')['default']
     Menubar: typeof import('./components/ui/menubar/Menubar.vue')['default']
     MenubarCheckboxItem: typeof import('./components/ui/menubar/MenubarCheckboxItem.vue')['default']
@@ -359,5 +361,6 @@ declare module 'vue' {
     TooltipContent: typeof import('./components/ui/tooltip/TooltipContent.vue')['default']
     TooltipProvider: typeof import('./components/ui/tooltip/TooltipProvider.vue')['default']
     TooltipTrigger: typeof import('./components/ui/tooltip/TooltipTrigger.vue')['default']
+    UpdateTeam: typeof import('./components/team/UpdateTeam.vue')['default']
   }
 }

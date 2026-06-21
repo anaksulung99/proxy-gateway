@@ -7,7 +7,7 @@ import type { InferInput, SimpleError } from '@vinejs/vine/types'
 export type ParamValue = string | number | bigint | boolean
 
 export interface Registry {
-  'home': {
+  'home.index': {
     methods: ["GET","HEAD"]
     pattern: '/'
     types: {
@@ -15,8 +15,92 @@ export interface Registry {
       paramsTuple: []
       params: {}
       query: {}
-      response: unknown
-      errorResponse: unknown
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['index']>>>
+    }
+  }
+  'home.about': {
+    methods: ["GET","HEAD"]
+    pattern: '/about'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['about']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['about']>>>
+    }
+  }
+  'home.contact': {
+    methods: ["GET","HEAD"]
+    pattern: '/contact'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['contact']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['contact']>>>
+    }
+  }
+  'home.pricing': {
+    methods: ["GET","HEAD"]
+    pattern: '/pricing'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['pricing']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['pricing']>>>
+    }
+  }
+  'home.terms': {
+    methods: ["GET","HEAD"]
+    pattern: '/terms'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['terms']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['terms']>>>
+    }
+  }
+  'home.privacy': {
+    methods: ["GET","HEAD"]
+    pattern: '/privacy'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['privacy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['privacy']>>>
+    }
+  }
+  'home.faqs': {
+    methods: ["GET","HEAD"]
+    pattern: '/faqs'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['faqs']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['faqs']>>>
+    }
+  }
+  'home.contact.store': {
+    methods: ["POST"]
+    pattern: '/contact'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/home').contactValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/home').contactValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['storeContact']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['storeContact']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
   'new_account.create': {
@@ -605,6 +689,102 @@ export interface Registry {
       query: ExtractQuery<InferInput<(typeof import('#validators/api_key').teamQuotaValidator)>>
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateTeamQuota']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_keys_controller').default['updateTeamQuota']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'teams.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/teams'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['index']>>>
+    }
+  }
+  'teams.store': {
+    methods: ["POST"]
+    pattern: '/app/teams'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').inviteTeamValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').inviteTeamValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'teams.update': {
+    methods: ["PATCH"]
+    pattern: '/app/teams/:id'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').updateUserValidator)>>
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').updateUserValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'teams.destroy': {
+    methods: ["DELETE"]
+    pattern: '/app/teams/:id/delete'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['destroy']>>>
+    }
+  }
+  'teams.deleteManyPost': {
+    methods: ["DELETE"]
+    pattern: '/app/teams/bulk'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').deleteUsersValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').deleteUsersValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['deleteMany']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin_controller').default['deleteMany']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'profile.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/app/profile'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['index']>>>
+    }
+  }
+  'profile.update': {
+    methods: ["PATCH"]
+    pattern: '/app/profile/update'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').updateOwnProfiileValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').updateOwnProfiileValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'profile.password': {
+    methods: ["PATCH"]
+    pattern: '/app/profile/password'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/user').updateProfilePasswordValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/user').updateProfilePasswordValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['password']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/teams_controller').default['password']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
 }

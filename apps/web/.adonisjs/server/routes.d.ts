@@ -4,7 +4,14 @@ type ParamValue = string | number | bigint | boolean
 
 export type ScannedRoutes = {
   ALL: {
-    'home': { paramsTuple?: []; params?: {} }
+    'home.index': { paramsTuple?: []; params?: {} }
+    'home.about': { paramsTuple?: []; params?: {} }
+    'home.contact': { paramsTuple?: []; params?: {} }
+    'home.pricing': { paramsTuple?: []; params?: {} }
+    'home.terms': { paramsTuple?: []; params?: {} }
+    'home.privacy': { paramsTuple?: []; params?: {} }
+    'home.faqs': { paramsTuple?: []; params?: {} }
+    'home.contact.store': { paramsTuple?: []; params?: {} }
     'new_account.create': { paramsTuple?: []; params?: {} }
     'new_account.store': { paramsTuple?: []; params?: {} }
     'session.create': { paramsTuple?: []; params?: {} }
@@ -54,9 +61,23 @@ export type ScannedRoutes = {
     'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api-keys.quota': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api-keys.teamQuota': { paramsTuple?: []; params?: {} }
+    'teams.index': { paramsTuple?: []; params?: {} }
+    'teams.store': { paramsTuple?: []; params?: {} }
+    'teams.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'teams.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'teams.deleteManyPost': { paramsTuple?: []; params?: {} }
+    'profile.index': { paramsTuple?: []; params?: {} }
+    'profile.update': { paramsTuple?: []; params?: {} }
+    'profile.password': { paramsTuple?: []; params?: {} }
   }
   GET: {
-    'home': { paramsTuple?: []; params?: {} }
+    'home.index': { paramsTuple?: []; params?: {} }
+    'home.about': { paramsTuple?: []; params?: {} }
+    'home.contact': { paramsTuple?: []; params?: {} }
+    'home.pricing': { paramsTuple?: []; params?: {} }
+    'home.terms': { paramsTuple?: []; params?: {} }
+    'home.privacy': { paramsTuple?: []; params?: {} }
+    'home.faqs': { paramsTuple?: []; params?: {} }
     'new_account.create': { paramsTuple?: []; params?: {} }
     'session.create': { paramsTuple?: []; params?: {} }
     'password.forgot': { paramsTuple?: []; params?: {} }
@@ -76,9 +97,17 @@ export type ScannedRoutes = {
     'scraper.index': { paramsTuple?: []; params?: {} }
     'scraper.logs': { paramsTuple?: []; params?: {} }
     'api-keys.index': { paramsTuple?: []; params?: {} }
+    'teams.index': { paramsTuple?: []; params?: {} }
+    'profile.index': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
-    'home': { paramsTuple?: []; params?: {} }
+    'home.index': { paramsTuple?: []; params?: {} }
+    'home.about': { paramsTuple?: []; params?: {} }
+    'home.contact': { paramsTuple?: []; params?: {} }
+    'home.pricing': { paramsTuple?: []; params?: {} }
+    'home.terms': { paramsTuple?: []; params?: {} }
+    'home.privacy': { paramsTuple?: []; params?: {} }
+    'home.faqs': { paramsTuple?: []; params?: {} }
     'new_account.create': { paramsTuple?: []; params?: {} }
     'session.create': { paramsTuple?: []; params?: {} }
     'password.forgot': { paramsTuple?: []; params?: {} }
@@ -98,8 +127,11 @@ export type ScannedRoutes = {
     'scraper.index': { paramsTuple?: []; params?: {} }
     'scraper.logs': { paramsTuple?: []; params?: {} }
     'api-keys.index': { paramsTuple?: []; params?: {} }
+    'teams.index': { paramsTuple?: []; params?: {} }
+    'profile.index': { paramsTuple?: []; params?: {} }
   }
   POST: {
+    'home.contact.store': { paramsTuple?: []; params?: {} }
     'new_account.store': { paramsTuple?: []; params?: {} }
     'session.store': { paramsTuple?: []; params?: {} }
     'password.email': { paramsTuple?: []; params?: {} }
@@ -120,10 +152,14 @@ export type ScannedRoutes = {
     'api-keys.revokePost': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api-keys.quota': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api-keys.teamQuota': { paramsTuple?: []; params?: {} }
+    'teams.store': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'proxy-lists.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'scraper.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'teams.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'profile.update': { paramsTuple?: []; params?: {} }
+    'profile.password': { paramsTuple?: []; params?: {} }
   }
   DELETE: {
     'proxy-lists.bulkDestroy': { paramsTuple?: []; params?: {} }
@@ -133,6 +169,8 @@ export type ScannedRoutes = {
     'tools.deleteManyPost': { paramsTuple?: []; params?: {} }
     'scraper.deleteManyPost': { paramsTuple?: []; params?: {} }
     'api-keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'teams.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'teams.deleteManyPost': { paramsTuple?: []; params?: {} }
   }
   PUT: {
     'proxy-lists.rotation': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }

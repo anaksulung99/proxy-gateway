@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
+import { usePolling } from '~/composables/usePolling'
+import { useGlobalAlert } from '~/composables/useAlert'
+import { useNotificationsStore } from '~/stores/notifications'
 
 const ANY = '__any__'
 
@@ -40,6 +43,11 @@ const props = defineProps<{
     availablePools: Array<{ id: number; name: string }>
   }
 }>()
+const { warning } = useGlobalAlert()
+const notifications = useNotificationsStore()
+const actionKey = ref<string | null>(null)
+
+usePolling(['rows', 'meta', 'summary'], { interval: 10000 })
 
 const filters = reactive({
   status: props.filters.status ?? ANY,
@@ -96,6 +104,48 @@ function changeLimit(value: unknown) {
   router.get('/app/runtime/quarantine', buildQuery({ page: 1, perPage }), {
     preserveScroll: true,
     preserveState: true,
+  })
+}
+
+function runEntryRecheck(row: (typeof props.rows)[number]) {
+  const taskKey = `runtime-quarantine:recheck:${row.proxyEntryId}`
+  actionKey.value = taskKey
+  notifications.startLocalTask(
+    taskKey,
+    'Recheck proxy runtime quarantine sedang berjalan',
+    `${row.protocol.toUpperCase()} | ${row.endpoint} | ${row.proxyListName}`
+  )
+  router.post(
+    '/app/proxy-entries/bulk',
+    { listId: row.proxyListId, action: 'recheck', ids: [row.proxyEntryId] },
+    {
+      preserveScroll: true,
+      onFinish: () => {
+        notifications.finishLocalTask(taskKey)
+        actionKey.value = null
+      },
+    }
+  )
+}
+
+function deleteEntry(row: (typeof props.rows)[number]) {
+  warning(
+    'Hapus proxy dari quarantine logs?',
+    `${row.endpoint} akan dihapus dari pool ${row.proxyListName}.`
+  ).then((confirmed) => {
+    if (!confirmed) return
+    const taskKey = `runtime-quarantine:delete:${row.proxyEntryId}`
+    actionKey.value = taskKey
+    router.post(
+      '/app/proxy-entries/bulk',
+      { listId: row.proxyListId, action: 'delete', ids: [row.proxyEntryId] },
+      {
+        preserveScroll: true,
+        onFinish: () => {
+          actionKey.value = null
+        },
+      }
+    )
   })
 }
 </script>
@@ -202,10 +252,15 @@ function changeLimit(value: unknown) {
 
       <Card class="border-border/70">
         <CardHeader>
-          <CardTitle>Runtime Quarantine Event Feed</CardTitle>
-          <CardDescription>
-            Log event dari runtime tracker saat proxy di-auto mark `timeout` atau `unhealthy`.
-          </CardDescription>
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Runtime Quarantine Event Feed</CardTitle>
+              <CardDescription>
+                Log event dari runtime tracker saat proxy di-auto mark `timeout` atau `unhealthy`.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" class="w-fit">Auto-refresh 10s</Badge>
+          </div>
         </CardHeader>
         <CardContent class="p-0 space-y-4">
           <Table>
@@ -216,11 +271,12 @@ function changeLimit(value: unknown) {
                 <TableHead>Status</TableHead>
                 <TableHead>Error</TableHead>
                 <TableHead>Time</TableHead>
+                <TableHead class="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-if="rows.length === 0">
-                <TableCell colspan="5" class="py-10 text-center text-muted-foreground">
+                <TableCell colspan="6" class="py-10 text-center text-muted-foreground">
                   Belum ada runtime quarantine event yang cocok dengan filter aktif.
                 </TableCell>
               </TableRow>
@@ -247,6 +303,28 @@ function changeLimit(value: unknown) {
                 </TableCell>
                 <TableCell class="text-xs text-muted-foreground">
                   {{ fmtDate(row.checkedAt) }}
+                </TableCell>
+                <TableCell class="text-right">
+                  <div class="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      :disabled="actionKey === `runtime-quarantine:recheck:${row.proxyEntryId}`"
+                      @click="runEntryRecheck(row)"
+                    >
+                      <Icon icon="lucide:refresh-cw" class="size-4" />
+                      Recheck
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      :disabled="actionKey === `runtime-quarantine:delete:${row.proxyEntryId}`"
+                      @click="deleteEntry(row)"
+                    >
+                      <Icon icon="lucide:trash-2" class="size-4" />
+                      Delete
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             </TableBody>

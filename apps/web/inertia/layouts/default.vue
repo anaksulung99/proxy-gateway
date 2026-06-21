@@ -1,12 +1,26 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import { toast, Toaster } from 'vue-sonner'
 import type { Data } from '@generated/data'
 import { useRealtimeProgress } from '~/composables/useRealtimeProgress'
+import { useAuthStore } from '~/stores/auth'
+import { useFlashStore } from '~/stores/flash'
+import { useTeamStore } from '~/stores/team'
 
 const page = usePage<Data.SharedProps>()
-useRealtimeProgress()
+const auth = useAuthStore()
+const flashStore = useFlashStore()
+const teamStore = useTeamStore()
+
+const user = computed(() => page.props?.user)
+const flash = computed(() => page.props?.flash)
+const team = computed(() => page.props?.team)
+watch(user, (value) => auth.setUser(value), { immediate: true })
+watch(flash, (value) => flashStore.setFlash(value), { immediate: true })
+watch(team, (value) => teamStore.setTeam(value), { immediate: true })
+
+useRealtimeProgress(() => auth.isAuthenticated)
 
 watch(
   () => page.url,
@@ -14,7 +28,7 @@ watch(
 )
 
 watch(
-  () => page.props.flash,
+  () => flashStore.flash,
   (flashMessages) => {
     if (flashMessages?.error) {
       toast.error(flashMessages.error)

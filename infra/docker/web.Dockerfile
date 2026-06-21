@@ -1,78 +1,36 @@
 # ============================================================
-# Dockerfile — AdonisJS Web App (Inertia + Vue)
-# Multi-stage: development (hot reload) & production (optimized)
+# AdonisJS web (Inertia + Vue) — build context = repo root
 # ============================================================
-
-# ── Base stage
 FROM node:24-alpine AS base
+RUN corepack enable
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Install system dependencies
-RUN apk add --no-cache \
-    curl \
-    wget \
-    dumb-init
-
-# ── Dependencies stage
+# ---- install all deps (incl dev, needed for the Vite/Adonis build) ----
 FROM base AS deps
-COPY apps/web/package.json apps/web/pnpm-lock.yaml* ./
+COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# ── Development stage (hot reload via nodemon/ts-node-dev)
-FROM base AS development
-WORKDIR /app
-
-# Copy node_modules dari deps
+# ---- compile TypeScript + build Vite assets -> /app/build ----
+FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
-
-# Non-root user untuk security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S adonisjs -u 1001 -G nodejs
-
-USER adonisjs
-
-EXPOSE 3333
-# Metrics port untuk Prometheus
-EXPOSE 9100
-
-# Development: source code di-mount via volume, jalankan dev server
-CMD ["dumb-init", "node", "ace", "serve", "--hmr"]
-
-# ── Build stage — compile TypeScript & build Vite assets
-FROM deps AS builder
-WORKDIR /app
-
-COPY apps/web/ .
-
-# Build frontend assets (Vite)
-RUN pnpm run build
-
-# Compile AdonisJS (TypeScript → JavaScript)
+COPY apps/web/ ./
+# `node ace build` boots the app (entity-index hooks) which validates env, so
+# provide throwaway build-time values. Real values are injected at runtime.
+ENV NODE_ENV=production \
+    APP_KEY=build_only_dummy_key_0123456789abcdef \
+    HOST=0.0.0.0 PORT=3333 LOG_LEVEL=info SESSION_DRIVER=cookie \
+    DB_CONNECTION=pg DB_HOST=localhost DB_PORT=5432 DB_USER=build DB_DATABASE=build \
+    REDIS_HOST=localhost REDIS_PORT=6379
 RUN node ace build
 
-# ── Production stage
-FROM node:24-alpine AS production
-WORKDIR /app
-
-RUN apk add --no-cache curl wget dumb-init
-
-# Non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S adonisjs -u 1001 -G nodejs
-
-# Copy compiled output dari builder
-COPY --from=builder --chown=adonisjs:nodejs /app/build ./
-COPY --from=builder --chown=adonisjs:nodejs /app/node_modules ./node_modules
-
-USER adonisjs
-
+# ---- production runtime ----
+FROM base AS production
+ENV NODE_ENV=production
+RUN apk add --no-cache wget
+# `node ace build` emits a self-contained app in ./build (incl package.json + lockfile)
+COPY --from=build /app/build ./
+RUN pnpm install --prod --frozen-lockfile
+COPY infra/docker/web-entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 3333
-EXPOSE 9100
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3333/health || exit 1
-
-CMD ["dumb-init", "node", "bin/server.js"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

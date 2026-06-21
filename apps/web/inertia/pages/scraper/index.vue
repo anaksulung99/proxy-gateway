@@ -4,6 +4,7 @@ import { Head, router, usePage } from '@inertiajs/vue3'
 import { Link } from '@adonisjs/inertia/vue'
 import { Icon } from '@iconify/vue'
 import { usePolling } from '~/composables/usePolling'
+import { useFlashStore } from '~/stores/flash'
 import { useNotificationsStore } from '~/stores/notifications'
 
 interface Source {
@@ -102,6 +103,7 @@ const ANY = '__all__'
 const running = ref<Set<number>>(new Set())
 const runningAll = ref(false)
 const runMode = ref<'request' | 'playwright' | 'crawlee'>('request')
+const flashStore = useFlashStore()
 const notifications = useNotificationsStore()
 const scheduleDrafts = reactive<Record<number, string>>({})
 const filterState = reactive({
@@ -117,7 +119,9 @@ for (const source of props.sources) {
   scheduleDrafts[source.id] = source.scheduleCron ?? ''
 }
 
-const scraperRunSummary = computed(() => page.props.flash?.scraperRunSummary ?? null)
+const scraperRunSummary = computed(
+  () => flashStore.flash?.scraperRunSummary ?? page.props.flash?.scraperRunSummary ?? null
+)
 const enabledRunnableCount = computed(
   () => props.sources.filter((source) => source.isEnabled && source.proxyListId).length
 )

@@ -4,6 +4,8 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import { Icon } from '@iconify/vue'
 import { useGlobalAlert } from '~/composables/useAlert'
+import { useFlashStore } from '~/stores/flash'
+import { useTeamStore } from '~/stores/team'
 
 interface ApiKeyRow {
   id: number
@@ -25,7 +27,10 @@ const props = defineProps<{
 const MB = 1024 * 1024
 const { warning } = useGlobalAlert()
 const page = usePage<{ flash?: { newApiKey?: { name: string; token: string } | null } }>()
-const newKey = computed(() => page.props.flash?.newApiKey ?? null)
+const flashStore = useFlashStore()
+const teamStore = useTeamStore()
+const newKey = computed(() => flashStore.flash?.newApiKey ?? page.props.flash?.newApiKey ?? null)
+const team = computed(() => teamStore.team ?? props.team)
 
 function fmtBytes(v: number | null) {
   if (!v) return v === 0 ? '0 B' : '∞'
@@ -47,12 +52,12 @@ function parseOptionalNumber(value: string | number) {
 
 // Team quota
 const teamUsedPct = computed(() => {
-  if (!props.team.monthlyQuotaBytes) return 0
-  return Math.min(100, Math.round((props.team.bytesThisMonth / props.team.monthlyQuotaBytes) * 100))
+  if (!team.value.monthlyQuotaBytes) return 0
+  return Math.min(100, Math.round((team.value.bytesThisMonth / team.value.monthlyQuotaBytes) * 100))
 })
 const teamForm = useForm({
-  monthlyQuotaGb: props.team.monthlyQuotaBytes
-    ? +(props.team.monthlyQuotaBytes / (1024 * MB)).toFixed(2)
+  monthlyQuotaGb: team.value.monthlyQuotaBytes
+    ? +(team.value.monthlyQuotaBytes / (1024 * MB)).toFixed(2)
     : null,
 })
 const teamQuotaInput = computed({
